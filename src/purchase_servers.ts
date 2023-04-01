@@ -16,6 +16,7 @@ export async function main(ns: NS) {
 		}
 
 		ns.purchaseServer("pserv-" + ns.getPurchasedServers().length, startingRam);
+		await ns.sleep(100);
 	}
 
 	const purchasedServers = ns.getPurchasedServers();

@@ -1,14 +1,18 @@
 import { NS } from "@ns";
 
 export async function main(ns: NS) : Promise<void> {
-	const [targetServer = "", preDelay = 0, portHandle = -1] = ns.args;
+	const [targetServer = "", additionalMsec = 0, portHandle = -1] = ns.args;
 
-	if (typeof(preDelay) == "number" && preDelay > 0) {
-		await ns.sleep(preDelay);
-	}
+	// if (typeof(additionalMsec) == "number" && additionalMsec > 0) {
+	// 	await ns.sleep(additionalMsec);
+	// }
 
 	if (typeof(targetServer) == "string") {
-		await ns.hack(targetServer);
+		if (typeof(additionalMsec) == "number" && additionalMsec > 0) {
+			await ns.hack(targetServer, { additionalMsec });
+		} else {
+			await ns.hack(targetServer);
+		}
 	}
 
 	if (typeof(portHandle) == "number" && portHandle != -1) {

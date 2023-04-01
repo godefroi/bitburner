@@ -1,5 +1,6 @@
 import { NS } from "@ns";
-import { ExploreServers, Compromise, FindHackingTarget } from "@/_tools/tools";
+import { ExploreServers } from "@/_tools/tools";
+import { Compromise, FindHackingTarget } from "@/_tools/hacking";
 
 const AIO_SCRIPT = "/_hack_scripts/_hs_aio.js";
 

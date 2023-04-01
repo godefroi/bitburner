@@ -1,9 +1,8 @@
 import { NS } from "@ns";
-import { ExploreServers, FindHackingTarget, WaitPids, Compromise, KillPids } from "@/_tools/tools";
+import { ExploreServers, KillPids, TerminateScripts, RunScript } from "@/_tools/tools";
+import { Prepared, PrepareServer } from "@/_tools/preparation";
+import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
 
-const HACK_SCRIPT  = "/_hack_scripts/_hs_hack.js";
-const GROW_SCRIPT  = "/_hack_scripts/_hs_grow.js";
-const WEAK_SCRIPT  = "/_hack_scripts/_hs_weaken.js";
 const JOB_SPACER   = 20;
 const DESYNC_LIMIT = 500;
 
@@ -20,7 +19,7 @@ export async function main(ns: NS) {
 
 	while (true) {
 		// kill off any scripts that are running
-		TerminateHackScripts(ns, candidateServers);
+		TerminateScripts(ns, candidateServers, HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT);
 
 		// clear our comm port of any leftover data
 		ns.getPortHandle(portHandle).clear();
@@ -28,7 +27,7 @@ export async function main(ns: NS) {
 		ns.tprint(`Prepping server ${bestTarget} for hacking...`);
 
 		while (!Prepared(ns, bestTarget)) {
-			await PrepareServer(ns, candidateServers, bestTarget);
+			await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
 		}
 
 		ns.tprint(`Server ${bestTarget} prepared and ready.`);
@@ -187,83 +186,6 @@ function CalculateBatchMetrics(ns: NS, targetName: string, targetPercentage: num
 		WeakenG:     { Threads: weakenThreadsG, Duration: weakenTime, Delay: weakenDelayG },
 		TargetFunds: targetFunds,
 	};
-}
-
-
-/**
- * Terminates all hacking scripts across all servers
- */
-function TerminateHackScripts(ns: NS, serverNames: string[]) {
-	serverNames.map(v => {
-		ns.scriptKill(HACK_SCRIPT, v);
-		ns.scriptKill(WEAK_SCRIPT, v);
-		ns.scriptKill(GROW_SCRIPT, v);
-	});
-}
-
-
-function Prepared(ns: NS, serverName: string): boolean {
-	const server = ns.getServer(serverName);
-
-	if (server.moneyAvailable < server.moneyMax) {
-		return false;
-	}
-
-	if (server.hackDifficulty > server.minDifficulty) {
-		return false;
-	}
-
-	return true;
-}
-
-
-async function PrepareServer(ns: NS, candidateServers: string[], hostName: string) {
-	const server         = ns.getServer(hostName);
-	const weakenThreads1 = Math.max(1, Math.ceil((server.hackDifficulty - server.minDifficulty) / ns.weakenAnalyze(1)));
-	const weakenTime     = Math.ceil(ns.getWeakenTime(hostName));
-	const growThreads    = Math.max(1, Math.ceil(ns.growthAnalyze(hostName, server.moneyMax / server.moneyAvailable)));
-	const growTime       = Math.ceil(ns.getGrowTime(hostName));
-	const weakenThreads2 = Math.max(1, Math.ceil(ns.growthAnalyzeSecurity(growThreads) / ns.weakenAnalyze(1)));
-	const weakenDelay1   = 0;
-	const growDelay      = weakenTime + JOB_SPACER - growTime;
-	const weakenDelay2   = JOB_SPACER * 2;
-
-	ns.tprint(`Starting ${weakenThreads1} weaken threads ${growThreads} grow threads, and ${weakenThreads2} weaken threads (2)`);
-	ns.tprint(`  Expected duration for prep is ${ns.tFormat(weakenTime + weakenDelay2)}`);
-
-	var weakenPid1 = RunScript(ns, candidateServers, WEAK_SCRIPT, weakenThreads1, hostName, weakenDelay1);
-	var growPid    = RunScript(ns, candidateServers, GROW_SCRIPT, growThreads,    hostName, growDelay);
-	var weakenPid2 = RunScript(ns, candidateServers, WEAK_SCRIPT, weakenThreads2, hostName, weakenDelay2);
-
-	await WaitPids(ns, weakenPid1, growPid, weakenPid2);
-}
-
-
-function RunScript(ns: NS, candidateServers: string[], script: string, threadCount: number, ...scriptArguments: (string | number | boolean)[]): number {
-	const totalRam     = ns.getScriptRam(script) * threadCount;
-	const targetServer = candidateServers
-		.map(s => ns.getServer(s))
-		.filter(s => (s.maxRam - s.ramUsed) > totalRam)
-		.shift();
-
-	if (targetServer == undefined) {
-		ns.tprint(`No server available for script ${script} with ${threadCount} threads.`);
-		return 0;
-	}
-
-	if (targetServer.hostname != "home" && !ns.scp(script, targetServer.hostname)) {
-		ns.tprint(`Failed to copy script ${script} to server ${targetServer.hostname}.`);
-		return 0;
-	}
-
-	const startedPid = ns.exec(script, targetServer.hostname, threadCount, ...scriptArguments);
-
-	if (startedPid == 0) {
-		ns.tprint(`Failed to exec script ${script} with ${threadCount} threads on server ${targetServer.hostname}. Ram required was ${totalRam}, ram available was ${targetServer.maxRam - targetServer.ramUsed}`);
-		return 0;
-	}
-
-	return startedPid;
 }
 
 

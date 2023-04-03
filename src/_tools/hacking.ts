@@ -76,6 +76,10 @@ export function TargetServerWeight(ns: NS, serverName: string): number {
 	const player = ns.getPlayer();
 	const server = ns.getServer(serverName);
 
+	if (server.moneyMax <= 0) {
+		return -1;
+	}
+
 	// Set security to minimum on the server object (for Formula.exe functions)
 	server.hackDifficulty = server.minDifficulty;
 

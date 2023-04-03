@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS, Server } from "@ns";
 
 
 export function ExploreServers(ns: NS): string[] {
@@ -103,3 +103,137 @@ export function TerminateScripts(ns: NS, serverNames: string[], ...scriptNames: 
 		scriptNames.map(scriptName =>
 			ns.scriptKill(scriptName, serverName)));
 }
+
+
+export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolean, ...scripts: ScriptExecution[]): ExecutionPlan | null {
+	const servers = candidateServers.map(s => {
+		const server = ns.getServer(s);
+		return {
+			Server: server.hostname,
+			AvailableRam: server.maxRam - server.ramUsed,
+		};
+	});
+
+	const costedScripts = scripts
+		.map(s => {
+			const scriptRam = ns.getScriptRam(s.Script);
+			return { Execution: s, TotalRam: scriptRam * s.Threads, ScriptRam: scriptRam };
+		})
+		.sort((a, b) => b.TotalRam - a.TotalRam); // b-a sorts biggest first
+
+	const plan: ExecutionPlan = [];
+
+	// go through each costed script, looking for the smallest server it'll fit on
+	for (const script of costedScripts) {
+		if (canSpread) {
+			// we can spread it out; our strategy here is to start at the smallest servers
+			// and start adding components until we finish this script
+			const possibleServers = servers
+				.filter(s => s.AvailableRam >= script.ScriptRam)
+				.sort((a, b) => a.AvailableRam - b.AvailableRam); // a-b sorts smallest first
+			
+			let remainingThreads = script.Execution.Threads;
+
+			for (const server of possibleServers) {
+				// if this script is fully scheduled, then we're done
+				if (remainingThreads == 0) {
+					break;
+				}
+
+				const serverThreads = Math.min(remainingThreads, Math.floor(server.AvailableRam / script.ScriptRam));
+
+				if (serverThreads > 0) {
+					plan.push({
+						Execution: { Script: script.Execution.Script, Threads: serverThreads, Arguments: script.Execution.Arguments },
+						Server: server.Server,
+					});
+
+					remainingThreads -= serverThreads;
+				}
+			}
+
+			// if we have threads remaining, then we were unable to schedule everything
+			if (remainingThreads > 0) {
+				return null;
+			}
+		} else {
+			const possibleServers = servers
+				.filter(s => s.AvailableRam >= script.TotalRam)
+				.sort((a, b) => a.AvailableRam - b.AvailableRam); // a-b sorts smallest first
+
+			// if none of the servers have enough ram for this script, then our planning fails
+			if (possibleServers.length == 0) {
+				return null;
+			}
+
+			// add an execution component for this script
+			plan.push({
+				Execution: script.Execution,
+				Server: possibleServers[0].Server,
+			});
+
+			// reduce the amount of ram available on the server
+			possibleServers[0].AvailableRam -= script.TotalRam;
+		}
+	}
+
+	// planning complete
+	return plan;
+}
+
+
+export function ExecutePlan(ns: NS, plan: ExecutionPlan): number[] {
+	const pids: number[] = [];
+
+	for (let i = 0; i < plan.length; i++) {
+		if (!ns.scp(plan[i].Execution.Script, plan[i].Server, "home")) {
+			KillPids(ns, ...pids);
+
+			throw `Script copy to server ${plan[i].Server} failed.`
+		}
+
+		const pid = ns.exec(plan[i].Execution.Script, plan[i].Server, plan[i].Execution.Threads, ...plan[i].Execution.Arguments);
+
+		if (pid <= 0) {
+			const failingServer = ns.getServer(plan[i].Server);
+			const reqRam        = ns.formatRam(plan[i].Execution.Threads * ns.getScriptRam(plan[i].Execution.Script));
+			const availRam      = ns.formatRam(failingServer.maxRam - failingServer.ramUsed);
+
+			// execution failed, kill any pids we started and bail
+			KillPids(ns, ...pids);
+
+
+
+			throw `Execution failed at index ${i} running ${plan[i].Execution.Script} on ${plan[i].Server} (ram req ${reqRam} avail ${availRam}). Plan: \n${JSON.stringify(plan, null, 2)}`;
+		}
+
+		pids.push(pid);
+	}
+
+	return pids;
+}
+
+
+export interface ScriptExecution {
+	/** The script (filename) to be executed */
+	Script: string,
+
+	/** The number of threads to be used to execute the script */
+	Threads: number,
+
+	/** The arguments to be passed to the script */
+	Arguments: (string | number | boolean)[],
+}
+
+
+export interface PlanComponent {
+	/** The details of the script to be executed */
+	Execution: ScriptExecution,
+
+	/** The server on which the script will be executed */
+	Server: string,
+};
+
+
+export type ExecutionPlan = PlanComponent[];
+

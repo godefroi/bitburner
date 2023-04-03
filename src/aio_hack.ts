@@ -5,10 +5,20 @@ import { Compromise, FindHackingTarget } from "@/_tools/hacking";
 const AIO_SCRIPT = "/_hack_scripts/_hs_aio.js";
 
 export async function main(ns: NS) {
-	const bestTarget = FindHackingTarget(ns);
+	let bestTarget = ns.args.length > 0 ? ns.args[0].toString() : FindHackingTarget(ns);
+
+	const allowHome  = ns.args.length > 1 ? Boolean(ns.args[1]) : false;
 	const servers    = ExploreServers(ns)
 		.map(s => ns.getServer(s))
 		.filter(s => s.maxRam > 0 && Compromise(ns, s.hostname));
+
+	if (bestTarget == "-") {
+		bestTarget = FindHackingTarget(ns);
+	}
+
+	if (allowHome) {
+		servers.push(ns.getServer("home"));
+	}
 
 	let scount = 0;
 	let tcount = 0;
@@ -32,11 +42,13 @@ function RunAioHackScript(ns: NS, server: string): number {
 
 	let totalThreads = 0;
 
-	// kill any running scripts
-	ns.killall(server, true);
+	if (server != "home") {
+		// kill any running scripts
+		ns.killall(server, true);
 
-	// copy the script(s) we might want to run
-	ns.scp(AIO_SCRIPT, server, "home");
+		// copy the script(s) we might want to run
+		ns.scp(AIO_SCRIPT, server, "home");
+	}
 
 	while (true) {
 		const targetServer    = ns.getServer(server);

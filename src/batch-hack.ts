@@ -1,5 +1,5 @@
 import { NS } from "@ns";
-import { ExploreServers, KillPids, TerminateScripts, RunScript } from "@/_tools/tools";
+import { ExploreServers, KillPids, TerminateScripts, RunScript, WaitPids } from "@/_tools/tools";
 import { Prepared, PrepareServer } from "@/_tools/preparation";
 import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
 
@@ -12,10 +12,25 @@ export async function main(ns: NS) {
 	ns.disableLog("scan");
 	ns.disableLog("scp");
 
+	if (ns.args.length < 2) {
+		ns.tprint("USAGE: batch-hack.js {target|-} {percentage}");
+		return;
+	}
+
 	const portHandle       = 20;
-	const bestTarget       = FindHackingTarget(ns);
+	const bestTarget       = ns.args[0].toString() != "-" ? ns.args[0].toString() : FindHackingTarget(ns);
+	const hackMoneyPercent = Number(ns.args[1]);
 	const candidateServers = ExploreServers(ns)
 		.filter(s => Compromise(ns, s) && ns.getServerMaxRam(s) > 0);
+
+	ns.tprint(`Running initial prep on ${bestTarget}...`);
+
+	while (!Prepared(ns, bestTarget)) {
+		await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
+		await ns.sleep(1000);
+	}
+
+	ns.tprint(`Server ${bestTarget} prepared and ready.`);
 
 	while (true) {
 		// kill off any scripts that are running
@@ -24,15 +39,13 @@ export async function main(ns: NS) {
 		// clear our comm port of any leftover data
 		ns.getPortHandle(portHandle).clear();
 
-		ns.tprint(`Prepping server ${bestTarget} for hacking...`);
-
 		while (!Prepared(ns, bestTarget)) {
+			ns.tprint(`Prepping server ${bestTarget} for hacking...`);
 			await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
+			await ns.sleep(1000);
 		}
 
-		ns.tprint(`Server ${bestTarget} prepared and ready.`);
-
-		await RunBatches(ns, candidateServers, bestTarget, portHandle);
+		await RunBatches(ns, candidateServers, bestTarget, portHandle, hackMoneyPercent);
 
 		// hack() raises security level by .002
 		// weaken() reduces security level by .05
@@ -42,12 +55,11 @@ export async function main(ns: NS) {
 }
 
 
-async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string, portHandle: number) {
+async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string, portHandle: number, hackMoneyPercent: number) {
 	const commPort = ns.getPortHandle(portHandle);
 
 	const weakenHFactor    = 2.5;
 	const growFactor       = 2.5;
-	const hackMoneyPercent = 0.5;
 
 	let firstWindowStart = -1;
 	let currentMode      = LoopMode.LoopDelay;
@@ -171,13 +183,13 @@ function CalculateBatchMetrics(ns: NS, targetName: string, targetPercentage: num
 		return null;
 	}
 
-	ns.tprint(`Target server is ${targetName}, targeting ${targetFunds} cash (of ${targetServer.moneyMax}) per batch`);
-	ns.tprint("  operation | threads | delay     | dur (ms)  | duration");
-	ns.tprint("  ----------+---------+-----------+-----------+---------");
-	ns.tprint(`  hack      | ${hackThreads.toString().padStart(7)   } | ${hackDelay.toString().padStart(7)   }ms | ${hackTime.toString().padStart(7)  }ms | ${ns.tFormat(hackTime)}`);
-	ns.tprint(`  weaken(H) | ${weakenThreadsH.toString().padStart(7)} | ${weakenDelayH.toString().padStart(7)}ms | ${weakenTime.toString().padStart(7)}ms | ${ns.tFormat(weakenTime)}`);
-	ns.tprint(`  grow      | ${growThreads.toString().padStart(7)   } | ${growDelay.toString().padStart(7)   }ms | ${growTime.toString().padStart(7)  }ms | ${ns.tFormat(growTime)}`);
-	ns.tprint(`  weaken(G) | ${weakenThreadsG.toString().padStart(7)} | ${weakenDelayG.toString().padStart(7)}ms | ${weakenTime.toString().padStart(7)}ms | ${ns.tFormat(weakenTime)}`);
+	// ns.tprint(`Target server is ${targetName}, targeting ${targetFunds} cash (of ${targetServer.moneyMax}) per batch`);
+	// ns.tprint("  operation | threads | delay     | dur (ms)  | duration");
+	// ns.tprint("  ----------+---------+-----------+-----------+---------");
+	// ns.tprint(`  hack      | ${hackThreads.toString().padStart(7)   } | ${hackDelay.toString().padStart(7)   }ms | ${hackTime.toString().padStart(7)  }ms | ${ns.tFormat(hackTime)}`);
+	// ns.tprint(`  weaken(H) | ${weakenThreadsH.toString().padStart(7)} | ${weakenDelayH.toString().padStart(7)}ms | ${weakenTime.toString().padStart(7)}ms | ${ns.tFormat(weakenTime)}`);
+	// ns.tprint(`  grow      | ${growThreads.toString().padStart(7)   } | ${growDelay.toString().padStart(7)   }ms | ${growTime.toString().padStart(7)  }ms | ${ns.tFormat(growTime)}`);
+	// ns.tprint(`  weaken(G) | ${weakenThreadsG.toString().padStart(7)} | ${weakenDelayG.toString().padStart(7)}ms | ${weakenTime.toString().padStart(7)}ms | ${ns.tFormat(weakenTime)}`);
 
 	return {
 		Hack:        { Threads: hackThreads,    Duration: hackTime,   Delay: hackDelay },

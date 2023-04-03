@@ -8,10 +8,13 @@ export async function main(ns: NS) {
 
 	let upgradeTarget = startingRam * 2;
 
+	ns.disableLog("getServerMoneyAvailable");
+	ns.disableLog("sleep");
+
 	ns.tprint("Purchasing servers...");
 
 	while (ns.getPurchasedServers().length < maxServerCount) {
-		while ((ns.getServerMoneyAvailable("home") / 10) > initialCost) {
+		while (initialCost > (ns.getServerMoneyAvailable("home") / 10)) {
 			await ns.sleep(5000);
 		}
 
@@ -24,7 +27,7 @@ export async function main(ns: NS) {
 	ns.tprint("Upgrading servers...");
 
 	while (upgradeTarget <= serverMaxRam) {
-		ns.tprint(`Checking for upgrade to ${ns.formatRam(upgradeTarget)}`);
+		//ns.tprint(`Checking for upgrade to ${ns.formatRam(upgradeTarget)}`);
 
 		const upgradeCost = purchasedServers.reduce((total, server) => total + ns.getPurchasedServerUpgradeCost(server, upgradeTarget), 0);
 
@@ -46,10 +49,10 @@ export async function main(ns: NS) {
 		for (const server of purchasedServers.filter(s => ns.getPurchasedServerUpgradeCost(s, upgradeTarget) > 0)) {
 			if (!ns.upgradePurchasedServer(server, upgradeTarget)) {
 				ns.tprint(`Failed to upgrade server ${server}`);
-			} else {
-				ns.tprint(`Upgraded server ${server} to ${ns.formatRam(upgradeTarget)}`);
 			}
 		}
+
+		ns.tprint(`Purchased servers upgraded to ${ns.formatRam(upgradeTarget)}`);
 
 		// move to the next upgrade target
 		upgradeTarget *= 2;

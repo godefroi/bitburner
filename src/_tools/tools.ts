@@ -202,8 +202,6 @@ export function ExecutePlan(ns: NS, plan: ExecutionPlan): number[] {
 			// execution failed, kill any pids we started and bail
 			KillPids(ns, ...pids);
 
-
-
 			throw `Execution failed at index ${i} running ${plan[i].Execution.Script} on ${plan[i].Server} (ram req ${reqRam} avail ${availRam}). Plan: \n${JSON.stringify(plan, null, 2)}`;
 		}
 

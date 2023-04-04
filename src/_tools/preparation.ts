@@ -17,7 +17,7 @@ export function Prepared(ns: NS, serverName: string): boolean {
 }
 
 
-export async function PrepareServer(ns: NS, candidateServers: string[], hostName: string, jobSpacer: number = 20): Promise<void> {
+export async function PrepareServer(ns: NS, candidateServers: string[], hostName: string, jobSpacer: number = 20, verbose: boolean = true): Promise<void> {
 	const server = ns.getServer(hostName);
 
 	// the math doesn't work out if there is zero (or less) money available...
@@ -59,6 +59,8 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 			}
 		}
 	}
+
+	ns.tprint(`  expected duration is ${ns.tFormat(weakenTime + weakenDelay2)}`);
 
 	// run the plan and wait for it to finish
 	await WaitPids(ns, ...ExecutePlan(ns, plan));

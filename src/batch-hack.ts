@@ -1,5 +1,5 @@
 import { NS } from "@ns";
-import { ExploreServers, KillPids, TerminateScripts, RunScript, WaitPids } from "@/_tools/tools";
+import { ExploreServers, KillPids, TerminateScripts, RunScript, WaitPids, CreatePlan, ExecutePlan } from "@/_tools/tools";
 import { Prepared, PrepareServer } from "@/_tools/preparation";
 import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
 
@@ -127,22 +127,29 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 				continue;
 			}
 
+			// set up the batch execution plan
+			const plan = CreatePlan(ns, candidateServers, false,
+				{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1,         hackLevel, batchNumber] },
+				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1,         hackLevel, batchNumber] },
+				{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1,         hackLevel, batchNumber] },
+				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, portHandle, hackLevel, batchNumber] });
+
+			if (plan == null) {
+				ns.tprint(`Failed to plan batch execution`);
+				break;
+			}
+
 			// start the batch
-			const hackPid  = RunScript(ns, candidateServers, HACK_SCRIPT, metrics.Hack.Threads,    bestTarget, metrics.Hack.Delay,    -1,         hackLevel, batchNumber);
-			const weakHPid = RunScript(ns, candidateServers, WEAK_SCRIPT, metrics.WeakenH.Threads, bestTarget, metrics.WeakenH.Delay, -1,         hackLevel, batchNumber);
-			const growPid  = RunScript(ns, candidateServers, GROW_SCRIPT, metrics.Grow.Threads,    bestTarget, metrics.Grow.Delay,    -1,         hackLevel, batchNumber);
-			const weakGPid = RunScript(ns, candidateServers, WEAK_SCRIPT, metrics.WeakenG.Threads, bestTarget, metrics.WeakenG.Delay, portHandle, hackLevel, batchNumber);
+			try {
+				ExecutePlan(ns, plan);
+			} catch (e) {
+				ns.tprint(`Batch execution failed; aborting batch. Error: ${e}`);
+				continue;
+			}
 
 			// track when the first paywindow starts
 			if (firstWindowStart == -1) {
 				firstWindowStart = performance.now() + metrics.Hack.Duration + metrics.Hack.Delay;
-			}
-
-			// check that our batch started successfully
-			if (hackPid == 0 || weakHPid == 0 || growPid == 0 || weakGPid == 0) {
-				ns.tprint(`Script starts failed; aborting batch.`);
-				KillPids(ns, hackPid, weakHPid, growPid, weakGPid);
-				continue;
 			}
 
 			// increment our batch counter
@@ -150,10 +157,6 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 
 			// reset our desync counter
 			desyncCount = 0;
-
-// await WaitPids(ns, [hackPid, weakHPid, growPid, weakGPid]);
-// ns.tprint(`ended at ${performance.now()}`);
-// return;
 		}
 	}
 }

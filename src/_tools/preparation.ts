@@ -39,18 +39,21 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 		{ Script: WEAK_SCRIPT, Threads: weakenThreads2, Arguments: [hostName, weakenDelay2] },
 	];
 
-	let plan = CreatePlan(ns, candidateServers, false, ...executions);
+	let plan     = CreatePlan(ns, candidateServers, false, ...executions);
+	let planType = "normal";
 
 	if (plan == null) {
 		// add home to the list of servers
 		candidateServers.push("home");
 
 		// and re-try the planning
-		plan = CreatePlan(ns, candidateServers, false, ...executions);
+		plan     = CreatePlan(ns, candidateServers, false, ...executions);
+		planType = "normal+home";
 
 		if (plan == null) {
 			// otherwise, re-plan but allow us to spread out the executions
-			plan = CreatePlan(ns, candidateServers, true, ...executions);
+			plan     = CreatePlan(ns, candidateServers, true, ...executions);
+			planType = "spread";
 
 			// if we STILL fail, then there's literally nothing we can do
 			// TODO: well, we could run one step at a time, or whatever...
@@ -60,7 +63,9 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 		}
 	}
 
-	ns.tprint(`  expected duration is ${ns.tFormat(weakenTime + weakenDelay2)}`);
+	if (verbose) {
+		ns.tprint(`Prepping ${hostName} using strategy ${planType}; expected duration is ${ns.tFormat(weakenTime + weakenDelay2)}`);
+	}
 
 	// run the plan and wait for it to finish
 	await WaitPids(ns, ...ExecutePlan(ns, plan));

@@ -148,7 +148,11 @@ export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolea
 						Server: server.Server,
 					});
 
+					// subtract the number of threads we still need to plan
 					remainingThreads -= serverThreads;
+
+					// subtract the ram from the server just planned on
+					server.AvailableRam -= (serverThreads * script.ScriptRam);
 				}
 			}
 

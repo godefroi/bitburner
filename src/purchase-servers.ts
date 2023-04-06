@@ -43,8 +43,6 @@ export async function main(ns: NS) {
 			await ns.sleep(60000);
 		}
 
-		ns.tprint(`Upgrading to ${ns.formatRam(upgradeTarget)}, cost ${ns.formatNumber(upgradeCost)}`);
-
 		// perform the upgrade
 		for (const server of purchasedServers.filter(s => ns.getPurchasedServerUpgradeCost(s, upgradeTarget) > 0)) {
 			if (!ns.upgradePurchasedServer(server, upgradeTarget)) {

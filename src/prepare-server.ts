@@ -8,8 +8,6 @@ export async function main(ns: NS) {
 	const servers    = ExploreServers(ns)
 		.filter(s => ns.getServerMaxRam(s) > 0 && Compromise(ns, s));
 
-	ns.tprint(`Prepping server ${bestTarget} for hacking...`);
-
 	while (!Prepared(ns, bestTarget)) {
 		await PrepareServer(ns, servers, bestTarget, 20);
 	}

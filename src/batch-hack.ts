@@ -4,7 +4,6 @@ import { Prepared, PrepareServer } from "@/_tools/preparation";
 import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
 
 const JOB_SPACER   = 20;
-const DESYNC_LIMIT = 500;
 
 
 export async function main(ns: NS) {
@@ -23,8 +22,6 @@ export async function main(ns: NS) {
 	const candidateServers = ExploreServers(ns)
 		.filter(s => Compromise(ns, s) && ns.getServerMaxRam(s) > 0);
 
-	ns.tprint(`Running initial prep on ${bestTarget}...`);
-
 	while (!Prepared(ns, bestTarget)) {
 		await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
 		await ns.sleep(1000);
@@ -40,7 +37,6 @@ export async function main(ns: NS) {
 		ns.getPortHandle(portHandle).clear();
 
 		while (!Prepared(ns, bestTarget)) {
-			ns.tprint(`Prepping server ${bestTarget} for hacking...`);
 			await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
 			await ns.sleep(1000);
 		}
@@ -60,14 +56,28 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 
 	const weakenHFactor    = 2.5;
 	const growFactor       = 2.5;
+	const batchStartTime   = performance.now();
 
 	let firstWindowStart = -1;
 	let currentMode      = LoopMode.LoopDelay;
 	let batchCount       = 0;
 
+	ns.tprint(`[${bestTarget}] Running batches; batch time approx ${ns.tFormat(Math.ceil(ns.getWeakenTime(bestTarget)))}`);
+
 	while (true) {
-		if (!Prepared(ns, bestTarget)) {
-			ns.tprint(`Server not prepared at start of batch loop; aborting for re-prep`);
+		let prepped = false;
+
+		for (let i = 0; i < 100; i++) {
+			if (Prepared(ns, bestTarget)) {
+				prepped = true;
+				break;
+			} else {
+				await ns.sleep(JOB_SPACER * 1.5);
+			}
+		}
+
+		if (!prepped) {
+			ns.tprint(`[${bestTarget}] Unprepped after HL change, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
 			return;
 		}
 
@@ -75,7 +85,7 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 		const metrics   = CalculateBatchMetrics(ns, bestTarget, hackMoneyPercent, weakenHFactor, growFactor);
 
 		let batchNumber = 0;
-		let desyncCount = 0;
+		let lastSuccess = performance.now();
 
 		// if we couldn't calculate metrics, something was wrong with the server (not prepped)
 		if (metrics == null) {
@@ -88,17 +98,17 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 				// if we're too close to when the first window starts, then
 				// we swap over to "read port" mode instead of "wait for
 				// arbitrary spacer" mode
-				if ((firstWindowStart > -1) && ((firstWindowStart - performance.now()) < 1000)) {
+				if (false/*(firstWindowStart > -1) && ((firstWindowStart - performance.now()) < 1000)*/) {
 					currentMode = LoopMode.PortWait;
 					ns.tprint(`Switched to PortWait mode at ${batchCount} batches.`);
 				} else {
 					// delay before we start another batch
-					await ns.sleep(JOB_SPACER * 4);
+					await ns.sleep(JOB_SPACER * 1.5);
 					batchCount++;
 				}
 			}
 
-			if (currentMode == LoopMode.PortWait) {
+			if (false/*currentMode == LoopMode.PortWait*/) {
 				const waitStart = performance.now();
 
 				if (commPort.empty()) {
@@ -117,8 +127,9 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 			// numbers
 			if (!Prepared(ns, bestTarget)) {
 				//ns.tprint(`Server was unprepared, aborting this run`);
-				if (++desyncCount > DESYNC_LIMIT) {
-					ns.tprint(`Major desync detected; restarting from scratch.`);
+				if (performance.now() - lastSuccess > 30000) {
+				//if (++desyncCount > DESYNC_LIMIT) {
+					ns.tprint(`[${bestTarget}] Unprepped during batch runs, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
 					// kill all our hack/grow/weaken scripts across all servers,
 					// re-prepare, and start over
 					return;
@@ -132,7 +143,7 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 				{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1,         hackLevel, batchNumber] },
 				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1,         hackLevel, batchNumber] },
 				{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1,         hackLevel, batchNumber] },
-				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, portHandle, hackLevel, batchNumber] });
+				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, /*portHandle*/-1, hackLevel, batchNumber] });
 
 			if (plan == null) {
 				ns.tprint(`Failed to plan batch execution`);
@@ -155,16 +166,14 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 			// increment our batch counter
 			batchNumber++;
 
-			// reset our desync counter
-			desyncCount = 0;
+			// reset our desync tracker
+			lastSuccess = performance.now();
 		}
 	}
 }
 
 
-/**
- * Calculates necessary batch timing metrics
- */
+/** Calculate batch timing metrics */
 function CalculateBatchMetrics(ns: NS, targetName: string, targetPercentage: number, weakenHFactor: number, growFactor: number): Metrics | null {
 	const targetServer   = ns.getServer(targetName);
 	//const player         = ns.getPlayer();

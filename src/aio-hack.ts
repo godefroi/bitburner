@@ -24,7 +24,7 @@ export async function main(ns: NS) {
 	let tcount = 0;
 
 	for (const server of servers) {
-		const startedThreads = RunAioHackScript(ns, server.hostname);
+		const startedThreads = RunAioHackScript(ns, server.hostname, bestTarget);
 
 		if (startedThreads > 0) {
 			scount += 1;
@@ -36,9 +36,8 @@ export async function main(ns: NS) {
 }
 
 
-function RunAioHackScript(ns: NS, server: string): number {
+function RunAioHackScript(ns: NS, server: string, target: string): number {
 	const ramPerThread = ns.getScriptRam(AIO_SCRIPT);
-	const bestTarget   = FindHackingTarget(ns);
 
 	let totalThreads = 0;
 
@@ -59,7 +58,7 @@ function RunAioHackScript(ns: NS, server: string): number {
 			break;
 		}
 
-		if (ns.exec(AIO_SCRIPT, server, possibleThreads, bestTarget, totalThreads) == 0) {
+		if (ns.exec(AIO_SCRIPT, server, possibleThreads, target, totalThreads) == 0) {
 			break;
 		}
 

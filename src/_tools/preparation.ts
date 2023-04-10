@@ -64,7 +64,7 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 	}
 
 	if (verbose) {
-		ns.tprint(`Prepping ${hostName} using strategy ${planType}; expected duration is ${ns.tFormat(weakenTime + weakenDelay2)}`);
+		ns.tprint(`[${hostName}] Prepping using strategy ${planType}; expected duration is ${ns.tFormat(weakenTime + weakenDelay2)}`);
 	}
 
 	// run the plan and wait for it to finish

@@ -4,7 +4,7 @@ import { Compromise, TargetServerWeight } from "./_tools/hacking";
 
 export async function main(ns: NS) {
 	const targets = ExploreServers(ns)
-		.filter(s => Compromise(ns, s))
+		.filter(s => Compromise(ns, s) && ns.getServerMaxMoney(s) > 0)
 		.sort((a, b) => TargetServerWeight(ns, b) - TargetServerWeight(ns, a));
 
 	if (targets.length == 0) {

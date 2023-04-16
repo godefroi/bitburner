@@ -1,5 +1,5 @@
 import { NS } from "@ns";
-import { ExploreServers, KillPids, TerminateScripts, RunScript, WaitPids, CreatePlan, ExecutePlan } from "@/_tools/tools";
+import { ExploreServers, TerminateScripts, CreatePlan, ExecutePlan } from "@/_tools/tools";
 import { Prepared, PrepareServer } from "@/_tools/preparation";
 import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
 
@@ -12,15 +12,20 @@ export async function main(ns: NS) {
 	ns.disableLog("scp");
 
 	if (ns.args.length < 2) {
-		ns.tprint("USAGE: batch-hack.js {target|-} {percentage}");
+		ns.tprint("USAGE: batch-hack.js {target|-} {percentage} [includeHome = false]");
 		return;
 	}
 
 	const portHandle       = 20;
 	const bestTarget       = ns.args[0].toString() != "-" ? ns.args[0].toString() : FindHackingTarget(ns);
 	const hackMoneyPercent = Number(ns.args[1]);
+	const includeHome      = ns.args.length >= 2 ? Boolean(ns.args[2]) : false;
 	const candidateServers = ExploreServers(ns)
 		.filter(s => Compromise(ns, s) && ns.getServerMaxRam(s) > 0);
+
+	if (includeHome) {
+		candidateServers.push("home");
+	}
 
 	while (!Prepared(ns, bestTarget)) {
 		await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
@@ -59,7 +64,6 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 	const batchStartTime   = performance.now();
 
 	let firstWindowStart = -1;
-	let currentMode      = LoopMode.LoopDelay;
 	let batchCount       = 0;
 
 	ns.tprint(`[${bestTarget}] Running batches; batch time approx ${ns.tFormat(Math.ceil(ns.getWeakenTime(bestTarget)))}`);
@@ -94,33 +98,12 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 
 		// we must account for the hacking level changing, as that changes our numbers
 		while (ns.getPlayer().skills.hacking == hackLevel) {
-			if (currentMode == LoopMode.LoopDelay) {
-				// if we're too close to when the first window starts, then
-				// we swap over to "read port" mode instead of "wait for
-				// arbitrary spacer" mode
-				if (false/*(firstWindowStart > -1) && ((firstWindowStart - performance.now()) < 1000)*/) {
-					currentMode = LoopMode.PortWait;
-					ns.tprint(`Switched to PortWait mode at ${batchCount} batches.`);
-				} else {
-					// delay before we start another batch
-					await ns.sleep(JOB_SPACER * 1.5);
-					batchCount++;
-				}
-			}
+			// delay before we start another batch
+			await ns.sleep(JOB_SPACER * 1.5);
+			batchCount++;
 
-			if (false/*currentMode == LoopMode.PortWait*/) {
-				const waitStart = performance.now();
-
-				if (commPort.empty()) {
-					ns.print(`Waiting for a port write...`);
-					await commPort.nextWrite();
-				}
-
-				const waitEnd  = performance.now();
-				const readData = commPort.read();
-
-				ns.print(`waited ${waitEnd - waitStart}ms, read data ${readData}`);
-			}
+			// increment our batch counter
+			batchNumber++;
 
 			// check to see whether the server is prepared; if not, come back around later
 			// we don't want to start a batch if the server isn't prepared, we'll get bad
@@ -140,13 +123,14 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 
 			// set up the batch execution plan
 			const plan = CreatePlan(ns, candidateServers, false,
-				{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1,         hackLevel, batchNumber] },
-				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1,         hackLevel, batchNumber] },
-				{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1,         hackLevel, batchNumber] },
-				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, /*portHandle*/-1, hackLevel, batchNumber] });
+				{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1, batchCount, hackLevel, batchNumber] },
+				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1, batchCount, hackLevel, batchNumber, "w1"] },
+				{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1, batchCount, hackLevel, batchNumber] },
+				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, -1, batchCount, hackLevel, batchNumber, "w2"] });
 
+			// if we failed to plan the batch, we probably just don't have enough servers
+			// just move on, we'll try again later
 			if (plan == null) {
-				ns.tprint(`Failed to plan batch execution`);
 				break;
 			}
 
@@ -162,9 +146,6 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 			if (firstWindowStart == -1) {
 				firstWindowStart = performance.now() + metrics.Hack.Duration + metrics.Hack.Delay;
 			}
-
-			// increment our batch counter
-			batchNumber++;
 
 			// reset our desync tracker
 			lastSuccess = performance.now();

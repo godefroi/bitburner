@@ -40,11 +40,13 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 	];
 
 	let plan     = CreatePlan(ns, candidateServers, false, ...executions);
-	let planType = "normal";
+	let planType = candidateServers.indexOf("home") < 0 ? "normal" : "normal+home";
 
 	if (plan == null) {
 		// add home to the list of servers
-		candidateServers.push("home");
+		if (candidateServers.indexOf("home") < 0) {
+			candidateServers.push("home");
+		}
 
 		// and re-try the planning
 		plan     = CreatePlan(ns, candidateServers, false, ...executions);
@@ -55,10 +57,60 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 			plan     = CreatePlan(ns, candidateServers, true, ...executions);
 			planType = "spread";
 
-			// if we STILL fail, then there's literally nothing we can do
-			// TODO: well, we could run one step at a time, or whatever...
+			// if we STILL fail, then there's literally nothing we can do to run it as a batch; try one-at-a-time
 			if (plan == null) {
-				throw "Like, you just don't have enough servers, man.";
+				const w1Plan = CreatePlan(ns, candidateServers, true, executions[0]);
+				const gPlan  = CreatePlan(ns, candidateServers, true, executions[1]);
+				const w2Plan = CreatePlan(ns, candidateServers, true, executions[2]);
+
+				if (w1Plan == null || gPlan == null || w2Plan == null) {
+					plan = [];
+
+					// at this point, we have to get quite creative...
+					if (weakenThreads1 > 1) {
+						// run weaken on every bit of RAM we have available, then we'll come around again in hopefully a better state
+						for (const server of candidateServers) {
+							const availRam   = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
+							const threadRam  = ns.getScriptRam(WEAK_SCRIPT);
+							const maxThreads = Math.floor(availRam / threadRam);
+
+							plan.push({
+								Execution: { Script: WEAK_SCRIPT, Threads: maxThreads, Arguments: [hostName, 0] },
+								Server: server
+							});
+						}
+
+						ns.tprint(`[${hostName}] Prepping using strategy git-r-done-weaken; expected duration is ${ns.tFormat(weakenTime)}`);
+						await WaitPids(ns, ...ExecutePlan(ns, plan));
+						return;
+					}
+
+					if (growThreads > 1) {
+						// run weaken on every bit of RAM we have available, then we'll come around again in hopefully a better state
+						for (const server of candidateServers) {
+							const availRam   = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
+							const threadRam  = ns.getScriptRam(GROW_SCRIPT);
+							const maxThreads = Math.floor(availRam / threadRam);
+
+							plan.push({
+								Execution: { Script: GROW_SCRIPT, Threads: maxThreads, Arguments: [hostName, 0] },
+								Server: server
+							});
+						}
+
+						ns.tprint(`[${hostName}] Prepping using strategy git-r-done-grow; expected duration is ${ns.tFormat(growTime)}`);
+						await WaitPids(ns, ...ExecutePlan(ns, plan));
+						return;
+					}
+
+					throw "Like, you just don't have enough servers, man. (!!)";
+				}
+
+				ns.tprint(`[${hostName}] Prepping using strategy sequential; expected duration is ${ns.tFormat(weakenTime + growTime + weakenTime)}`);
+				await WaitPids(ns, ...ExecutePlan(ns, w1Plan));
+				await WaitPids(ns, ...ExecutePlan(ns, gPlan));
+				await WaitPids(ns, ...ExecutePlan(ns, w2Plan));
+				return;
 			}
 		}
 	}

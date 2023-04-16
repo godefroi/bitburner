@@ -206,7 +206,15 @@ export function ExecutePlan(ns: NS, plan: ExecutionPlan): number[] {
 			// execution failed, kill any pids we started and bail
 			KillPids(ns, ...pids);
 
-			throw `Execution failed at index ${i} running ${plan[i].Execution.Script} on ${plan[i].Server} (ram req ${reqRam} avail ${availRam}). Plan: \n${JSON.stringify(plan, null, 2)}`;
+			let planString = "";
+
+			for (let j = 0; j < plan.length; j++) {
+				planString += `${j.toString().padStart(2)}: ${plan[j].Server.padEnd(14)} (x${plan[j].Execution.Threads.toString()}) ${plan[j].Execution.Script} [${plan[j].Execution.Arguments.join(",")}]\n`;
+			}
+
+			const runningScript = ns.getRunningScript(plan[i].Execution.Script, plan[i].Server, ...plan[i].Execution.Arguments);
+
+			throw `Execution failed at ${i} (using ${reqRam} of ${availRam}).${runningScript != null ? " **dupe**" : ""} Plan: \n${planString}`;
 		}
 
 		pids.push(pid);

@@ -27,19 +27,24 @@ export async function main(ns: NS) {
 	ns.tprint("Upgrading servers...");
 
 	while (upgradeTarget <= serverMaxRam) {
-		//ns.tprint(`Checking for upgrade to ${ns.formatRam(upgradeTarget)}`);
+		const upgradeCost = purchasedServers
+			.filter(s => ns.getServerMaxRam(s) < upgradeTarget)
+			.reduce((total, server) => total + ns.getPurchasedServerUpgradeCost(server, upgradeTarget), 0);
 
-		const upgradeCost = purchasedServers.reduce((total, server) => total + ns.getPurchasedServerUpgradeCost(server, upgradeTarget), 0);
+		let reported = false;
 
 		if (upgradeCost <= 0) {
 			upgradeTarget *= 2;
 			continue;
 		}
 
-		ns.tprint(`Upgrading servers to ${ns.formatRam(upgradeTarget)} would cost ${ns.formatNumber(upgradeCost)}`);
-
 		// wait until the upgrade would cost <=10% of our money
 		while (upgradeCost > (ns.getServerMoneyAvailable("home") / 10)) {
+			if (!reported) {
+				reported = true;
+				ns.tprint(`Upgrading to ${ns.formatRam(upgradeTarget)} will cost ${ns.formatNumber(upgradeCost)}, will upgrade at ${ns.formatNumber(upgradeCost * 10)}`);
+			}
+
 			await ns.sleep(60000);
 		}
 

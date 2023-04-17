@@ -10,11 +10,22 @@ export async function main(ns: NS) {
 	// 	ns.tprintf("%s", path);
 	// }	
 
-	const path = [ns.args[0].toString()];
+	let path = [ns.args[0].toString()];
+
+	const hl   = ns.getPlayer().skills.hacking;
 
 	// this works because the first item returned is always the "upstream" (i.e. toward home) server
 	while (path[0] !== "home") {
 		path.unshift(ns.scan(path[0])[0]);
+	}
+
+	for (let i = path.length - 1; i >= 0; i--) {
+		if (ns.getServer(path[i]).backdoorInstalled) {
+			path = path.slice(i);
+			break;
+		} else if (ns.getServerRequiredHackingLevel(path[i]) <= hl) {
+			path[i] += " (!)";
+		}
 	}
 
 	ns.tprint(path.join(" -> "));

@@ -107,10 +107,12 @@ export function TerminateScripts(ns: NS, serverNames: string[], ...scriptNames: 
 
 export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolean, ...scripts: ScriptExecution[]): ExecutionPlan | null {
 	const servers = candidateServers.map(s => {
-		const server = ns.getServer(s);
+		const server  = ns.getServer(s);
+		const padding = s == "home" ? 8 : 0;
+
 		return {
 			Server: server.hostname,
-			AvailableRam: server.maxRam - server.ramUsed,
+			AvailableRam: Math.max(0, server.maxRam - (server.ramUsed + padding)),
 		};
 	});
 
@@ -131,7 +133,7 @@ export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolea
 			const possibleServers = servers
 				.filter(s => s.AvailableRam >= script.ScriptRam)
 				.sort((a, b) => a.AvailableRam - b.AvailableRam); // a-b sorts smallest first
-			
+
 			let remainingThreads = script.Execution.Threads;
 
 			for (const server of possibleServers) {
@@ -196,7 +198,13 @@ export function ExecutePlan(ns: NS, plan: ExecutionPlan): number[] {
 			throw `Script copy to server ${plan[i].Server} failed.`
 		}
 
-		const pid = ns.exec(plan[i].Execution.Script, plan[i].Server, plan[i].Execution.Threads, ...plan[i].Execution.Arguments);
+		let pid = -1;
+
+		try {
+			pid = ns.exec(plan[i].Execution.Script, plan[i].Server, plan[i].Execution.Threads, ...plan[i].Execution.Arguments);
+		} catch (err) {
+			throw new Error(`Error calling ns.exec(): ${err}`);
+		}
 
 		if (pid <= 0) {
 			const failingServer = ns.getServer(plan[i].Server);

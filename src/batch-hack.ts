@@ -32,7 +32,7 @@ export async function main(ns: NS) {
 		await ns.sleep(1000);
 	}
 
-	ns.tprint(`Server ${bestTarget} prepared and ready.`);
+	ns.tprint(`[${bestTarget}] Server prepared and ready.`);
 
 	while (true) {
 		// kill off any scripts that are running
@@ -57,14 +57,11 @@ export async function main(ns: NS) {
 
 
 async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string, portHandle: number, hackMoneyPercent: number) {
-	const commPort = ns.getPortHandle(portHandle);
+	const weakenHFactor  = 2.5;
+	const growFactor     = 2.5;
+	const batchStartTime = performance.now();
 
-	const weakenHFactor    = 2.5;
-	const growFactor       = 2.5;
-	const batchStartTime   = performance.now();
-
-	let firstWindowStart = -1;
-	let batchCount       = 0;
+	let batchCount = 0;
 
 	ns.tprint(`[${bestTarget}] Running batches; batch time approx ${ns.tFormat(Math.ceil(ns.getWeakenTime(bestTarget)))}`);
 
@@ -109,9 +106,7 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 			// we don't want to start a batch if the server isn't prepared, we'll get bad
 			// numbers
 			if (!Prepared(ns, bestTarget)) {
-				//ns.tprint(`Server was unprepared, aborting this run`);
 				if (performance.now() - lastSuccess > 30000) {
-				//if (++desyncCount > DESYNC_LIMIT) {
 					ns.tprint(`[${bestTarget}] Unprepped during batch runs, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
 					// kill all our hack/grow/weaken scripts across all servers,
 					// re-prepare, and start over
@@ -140,11 +135,6 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 			} catch (e) {
 				ns.tprint(`Batch execution failed; aborting batch. Error: ${e}`);
 				continue;
-			}
-
-			// track when the first paywindow starts
-			if (firstWindowStart == -1) {
-				firstWindowStart = performance.now() + metrics.Hack.Duration + metrics.Hack.Delay;
 			}
 
 			// reset our desync tracker

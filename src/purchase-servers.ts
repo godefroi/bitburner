@@ -9,6 +9,7 @@ export async function main(ns: NS) {
 	let upgradeTarget = startingRam * 2;
 
 	ns.disableLog("getServerMoneyAvailable");
+	ns.disableLog("getServerMaxRam");
 	ns.disableLog("sleep");
 
 	ns.tprint("Purchasing servers...");

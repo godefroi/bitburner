@@ -11,12 +11,12 @@ export async function main(ns: NS) {
 		targets.push("n00dles");
 	}
 
-	ns.tprint("Server Name       | Skill | Max Money | Mny %  | Diff %")
-	ns.tprint("------------------+-------+-----------|--------|-------");
+	ns.tprint("Server Name       | Skill | Max Money | Mny %   | Diff %")
+	ns.tprint("------------------|-------|-----------|---------|--------");
 
 	for (let i = 0; i < targets.length && i < 10; i++) {
 		const server = ns.getServer(targets[i]);
 
-		ns.tprint(`${server.hostname.padEnd(17)} | ${server.requiredHackingSkill.toString().padStart(5)} | ${ns.formatNumber(server.moneyMax).padStart(9)} | ${ns.formatPercent(server.moneyAvailable / server.moneyMax).padStart(6)} | ${ns.formatPercent(server.minDifficulty / server.hackDifficulty).padStart(6)}`);
+		ns.tprint(`${server.hostname.padEnd(17)} | ${server.requiredHackingSkill.toString().padStart(5)} | ${ns.formatNumber(server.moneyMax).padStart(9)} | ${ns.formatPercent(server.moneyAvailable / server.moneyMax).padStart(7)} | ${ns.formatPercent(server.minDifficulty / server.hackDifficulty).padStart(7)}`);
 	}
 }

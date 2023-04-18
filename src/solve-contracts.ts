@@ -5,27 +5,45 @@ type ContractAnswer = (string | number | any[] | undefined);
 type ContractSolver = (ns: NS, contract: ContractInfo) => ContractAnswer;
 
 export async function main(ns: NS) {
+	const flags = ns.flags([
+		["once", false]]);
+
+	const once = Boolean(flags["once"]);
 	const slvers: Record<string, ContractSolver> = {
-		"Algorithmic Stock Trader III":   AlgorithmicStockTraderIII,
-		"Algorithmic Stock Trader IV":    AlgorithmicStockTraderIV,
-		"Encryption I: Caesar Cipher":    EncryptionICaesarCipher,
-		"Encryption II: Vigenère Cipher": EncryptionIIVigenereCipher,
-		"Minimum Path Sum in a Triangle": MinimumPathSumInATriangle,
-		"Spiralize Matrix":               SpiralizeMatrix,
-		"Total Ways to Sum II":           TotalWaysToSumII,
-		"Unique Paths in a Grid II":      UniquePathsInAGridII,
+		"Algorithmic Stock Trader III":            AlgorithmicStockTraderIII,
+		"Algorithmic Stock Trader IV":             AlgorithmicStockTraderIV,
+		"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
+		"Encryption II: Vigenère Cipher":          EncryptionIIVigenereCipher,
+		"Find Largest Prime Factor":               FindLargestPrimeFactor,
+		"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
+		"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
+		"Spiralize Matrix":                        SpiralizeMatrix,
+		"Total Ways to Sum II":                    TotalWaysToSumII,
+		"Unique Paths in a Grid II":               UniquePathsInAGridII,
 	};
 
-	for (const c of FindContracts(ns)) {
-		if (Object.hasOwn(slvers, c.Type)) {
-			const answer = slvers[c.Type](ns, c);
-			if (answer != undefined) {
-				ns.tprint(ns.codingcontract.attempt(answer, c.Filename, c.Server));
+	if (!once) {
+		ns.tprint("Monitoring for contracts...");
+	}
+	
+	while (true) {
+		for (const c of FindContracts(ns)) {
+			if (Object.hasOwn(slvers, c.Type)) {
+				const answer = slvers[c.Type](ns, c);
+				if (answer != undefined) {
+					ns.tprint(ns.codingcontract.attempt(answer, c.Filename, c.Server));
+				}
+			} else {
+				ns.tprint(`${c.Server} (${c.Filename}) -> ${c.Type}`);
+				ns.codingcontract.attempt
 			}
-		} else {
-			ns.tprint(`${c.Server} (${c.Filename}) -> ${c.Type}`);
-			ns.codingcontract.attempt
 		}
+
+		if (once) {
+			break;
+		}
+
+		await ns.sleep(30000);
 	}
 }
 
@@ -109,18 +127,60 @@ function EncryptionIIVigenereCipher(ns: NS, contract: ContractInfo) {
 }
 
 
-function LargestPrimeFactor(number: number) {
-	let i = 2;
+function FindLargestPrimeFactor(ns: NS, contract: ContractInfo) {
+	let num: number = ns.codingcontract.getData(contract.Filename, contract.Server);
 
-	while (number > 1) {
-		if (number % i == 0) {
-			number /= i;
-		} else {
-			i += 1;
+	for (let f = 2; f * f < num; f++) {
+		while (num % f === 0) {
+			num /= f;
 		}
 	}
 
-	return i;
+	return num;
+}
+
+
+function HammingCodesIntegerToEncodedBinary(ns: NS, contract: ContractInfo) {
+	const num: number = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const digits = num.toString(2).split('').map(s => Number(s));
+	const encoded = [0];
+
+	let pow = 1;
+
+	for (let i = 1; digits.length > 0; i++) {
+		if (i === pow) {
+			encoded[i] = 0;
+			pow *= 2;
+		} else {
+			const nextDigit = digits.shift();
+
+			if (nextDigit == undefined) {
+				throw "There wasn't a digit.";
+			}
+
+			encoded[i] = +nextDigit;
+		}
+	}
+
+	pow /= 2;
+
+	for (let i = encoded.length - 1; i > 0; i--) {
+		if (encoded[i]) {
+			encoded[0] ^= 1;
+		}
+
+		if (i === pow) {
+			pow /= 2;
+		} else if (encoded[i]) {
+			for (let p = pow; p > 0; p >>= 1) {
+				if (i & p) {
+					encoded[p] ^= 1;
+				}
+			}
+		}
+	}
+
+	return encoded.join("");
 }
 
 

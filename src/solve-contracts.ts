@@ -8,6 +8,8 @@ export async function main(ns: NS) {
 	const slvers: Record<string, ContractSolver> = {
 		"Algorithmic Stock Trader III":   AlgorithmicStockTraderIII,
 		"Algorithmic Stock Trader IV":    AlgorithmicStockTraderIV,
+		"Encryption I: Caesar Cipher":    EncryptionICaesarCipher,
+		"Encryption II: Vigenère Cipher": EncryptionIIVigenereCipher,
 		"Minimum Path Sum in a Triangle": MinimumPathSumInATriangle,
 		"Spiralize Matrix":               SpiralizeMatrix,
 		"Total Ways to Sum II":           TotalWaysToSumII,
@@ -76,6 +78,34 @@ function AlgorithmicStockTraderIV(ns: NS, contract: ContractInfo) {
 	const data: any[] = ns.codingcontract.getData(contract.Filename, contract.Server);
 
 	return AlgorithmicStockTrader(data[1] as number[], data[0] as number);
+}
+
+
+function EncryptionICaesarCipher(ns: NS, contract: ContractInfo) {
+	const data: any[]      = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const text: string     = data[0];
+	const shift: number    = data[1];
+	const result: string[] = text
+		.split("")
+		.map(c => c == " " ? c : String.fromCharCode((c.charCodeAt(0) - 65 + (26 - shift)) % 26 + 65));
+
+	return result.join("");
+}
+
+
+function EncryptionIIVigenereCipher(ns: NS, contract: ContractInfo) {
+	const [text, password]: [string, string] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	const pw     = password.split("");
+	const pwChar = () => { pw.push(pw[0]); return pw.shift() as string; };
+	const cypher = (char: string, shift: number) => String.fromCharCode((char.charCodeAt(0) - 65 + shift) % 26 + 65);
+	const lookup = (c1: string, c2: string) => cypher(c2, c1.charCodeAt(0) - 65);
+
+	const result = text.split("")
+		.map(ch => lookup(ch, pwChar()))
+		.join("");
+
+	return result;
 }
 
 

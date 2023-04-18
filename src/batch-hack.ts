@@ -10,6 +10,8 @@ export async function main(ns: NS) {
 	ns.disableLog("sleep");
 	ns.disableLog("scan");
 	ns.disableLog("scp");
+	ns.disableLog("exec");
+	ns.disableLog("getServerMaxRam");
 
 	if (ns.args.length < 2) {
 		ns.tprint("USAGE: batch-hack.js {target|-} {percentage} [includeHome = false]");
@@ -33,6 +35,7 @@ export async function main(ns: NS) {
 	}
 
 	ns.tprint(`[${bestTarget}] Server prepared and ready.`);
+	ns.tprint(`[${bestTarget}] Running batches; batch time approx ${ns.tFormat(Math.ceil(ns.getWeakenTime(bestTarget)))}`);
 
 	while (true) {
 		// kill off any scripts that are running
@@ -57,88 +60,70 @@ export async function main(ns: NS) {
 
 
 async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string, portHandle: number, hackMoneyPercent: number) {
-	const weakenHFactor  = 2.5;
-	const growFactor     = 2.5;
+	const weakenHFactor  = 1.5;
+	const growFactor     = 1.5;
 	const batchStartTime = performance.now();
 
-	let batchCount = 0;
-
-	ns.tprint(`[${bestTarget}] Running batches; batch time approx ${ns.tFormat(Math.ceil(ns.getWeakenTime(bestTarget)))}`);
+	let batchCount  = 0;
+	let metrics     = CalculateBatchMetrics(ns, bestTarget, hackMoneyPercent, weakenHFactor, growFactor);
+	let metricsHl   = ns.getPlayer().skills.hacking;
+	let lastSuccess = performance.now();
 
 	while (true) {
-		let prepped = false;
+		// delay before we start another batch
+		await ns.sleep(JOB_SPACER * 1.1);
 
-		for (let i = 0; i < 100; i++) {
-			if (Prepared(ns, bestTarget)) {
-				prepped = true;
-				break;
-			} else {
-				await ns.sleep(JOB_SPACER * 1.5);
+		// increment our batch counter
+		batchCount++;
+
+		// check to see whether the server is prepared; if not, come back around later
+		// we don't want to start a batch if the server isn't prepared, we'll get bad
+		// numbers
+		if (!Prepared(ns, bestTarget)) {
+			if (performance.now() - lastSuccess > 30000) {
+				ns.tprint(`[${bestTarget}] Unprepped during batch runs, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
+				// kill all our hack/grow/weaken scripts across all servers,
+				// re-prepare, and start over
+				return;
 			}
+
+			continue;
 		}
 
-		if (!prepped) {
-			ns.tprint(`[${bestTarget}] Unprepped after HL change, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
-			return;
+		// reset our desync tracker
+		lastSuccess = performance.now();
+
+		// update the metrics if our hack level changed since we calculated them
+		if (ns.getPlayer().skills.hacking != metricsHl) {
+			metrics   = CalculateBatchMetrics(ns, bestTarget, hackMoneyPercent, weakenHFactor, growFactor);
+			metricsHl = ns.getPlayer().skills.hacking;
 		}
-
-		const hackLevel = ns.getPlayer().skills.hacking;
-		const metrics   = CalculateBatchMetrics(ns, bestTarget, hackMoneyPercent, weakenHFactor, growFactor);
-
-		let batchNumber = 0;
-		let lastSuccess = performance.now();
 
 		// if we couldn't calculate metrics, something was wrong with the server (not prepped)
 		if (metrics == null) {
+			ns.tprint(`[${bestTarget}] Unable to calculate metrics, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
 			return;
 		}
 
-		// we must account for the hacking level changing, as that changes our numbers
-		while (ns.getPlayer().skills.hacking == hackLevel) {
-			// delay before we start another batch
-			await ns.sleep(JOB_SPACER * 1.5);
-			batchCount++;
+		// set up the batch execution plan
+		const plan = CreatePlan(ns, candidateServers, false,
+			{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1, batchCount] },
+			{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1, batchCount, "w1"] },
+			{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1, batchCount] },
+			{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, -1, batchCount, "w2"] });
 
-			// increment our batch counter
-			batchNumber++;
+		// if we failed to plan the batch, we probably just don't have enough servers
+		// just move on, we'll try again later
+		if (plan == null) {
+			continue;
+		}
 
-			// check to see whether the server is prepared; if not, come back around later
-			// we don't want to start a batch if the server isn't prepared, we'll get bad
-			// numbers
-			if (!Prepared(ns, bestTarget)) {
-				if (performance.now() - lastSuccess > 30000) {
-					ns.tprint(`[${bestTarget}] Unprepped during batch runs, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
-					// kill all our hack/grow/weaken scripts across all servers,
-					// re-prepare, and start over
-					return;
-				}
-
-				continue;
-			}
-
-			// set up the batch execution plan
-			const plan = CreatePlan(ns, candidateServers, false,
-				{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1, batchCount, hackLevel, batchNumber] },
-				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1, batchCount, hackLevel, batchNumber, "w1"] },
-				{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1, batchCount, hackLevel, batchNumber] },
-				{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, -1, batchCount, hackLevel, batchNumber, "w2"] });
-
-			// if we failed to plan the batch, we probably just don't have enough servers
-			// just move on, we'll try again later
-			if (plan == null) {
-				break;
-			}
-
-			// start the batch
-			try {
-				ExecutePlan(ns, plan);
-			} catch (e) {
-				ns.tprint(`Batch execution failed; aborting batch. Error: ${e}`);
-				continue;
-			}
-
-			// reset our desync tracker
-			lastSuccess = performance.now();
+		// start the batch
+		try {
+			ExecutePlan(ns, plan);
+		} catch (e) {
+			ns.tprint(`Batch execution failed; aborting batch. Error: ${e}`);
+			continue;
 		}
 	}
 }

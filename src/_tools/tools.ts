@@ -108,7 +108,7 @@ export function TerminateScripts(ns: NS, serverNames: string[], ...scriptNames: 
 export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolean, ...scripts: ScriptExecution[]): ExecutionPlan | null {
 	const servers = candidateServers.map(s => {
 		const server  = ns.getServer(s);
-		const padding = s == "home" ? 8 : 0;
+		const padding = s != "home" ? 0 : (server.maxRam >= 4096 ? 1032 : 8); // if we have >= 4tb, reserve 1tb+8gb, otherwise reserve 8gb
 
 		return {
 			Server: server.hostname,

@@ -10,13 +10,16 @@ export async function main(ns: NS) {
 
 	const once = Boolean(flags["once"]);
 	const slvers: Record<string, ContractSolver> = {
+		"Algorithmic Stock Trader I":              AlgorithmicStockTraderI,
 		"Algorithmic Stock Trader III":            AlgorithmicStockTraderIII,
 		"Algorithmic Stock Trader IV":             AlgorithmicStockTraderIV,
+		"Compression II: LZ Decompression":        CompressionIILZDecompression,
 		"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
 		"Encryption II: Vigenère Cipher":          EncryptionIIVigenereCipher,
 		"Find Largest Prime Factor":               FindLargestPrimeFactor,
 		"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
 		"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
+		"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
 		"Spiralize Matrix":                        SpiralizeMatrix,
 		"Total Ways to Sum II":                    TotalWaysToSumII,
 		"Unique Paths in a Grid II":               UniquePathsInAGridII,
@@ -85,6 +88,13 @@ function AlgorithmicStockTrader(prices: number[], n = 1, s = 0, cache: Record<st
 }
 
 
+function AlgorithmicStockTraderI(ns: NS, contract: ContractInfo) {
+	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	return AlgorithmicStockTrader(data, 1);
+}
+
+
 function AlgorithmicStockTraderIII(ns: NS, contract: ContractInfo) {
 	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
 
@@ -96,6 +106,75 @@ function AlgorithmicStockTraderIV(ns: NS, contract: ContractInfo) {
 	const data: any[] = ns.codingcontract.getData(contract.Filename, contract.Server);
 
 	return AlgorithmicStockTrader(data[1] as number[], data[0] as number);
+}
+
+
+function CompressionIILZDecompression(ns: NS, contract: ContractInfo) {
+	const encoded: string = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	let decoded = '';
+	let chunkType: 'direct' | 'referent' = 'direct';
+	let encodedPosition = 0;
+
+	while (encodedPosition < encoded.length) {
+		const length = encoded.charCodeAt(encodedPosition) - '0'.charCodeAt(0);
+
+		if (length > 9 || length < 0) {
+			throw new Error(`${encoded.charAt(encodedPosition)} is out of ASCII range 0-9 at position ${encodedPosition}`);
+		}
+
+		switch (chunkType) {
+			case 'direct':
+				if (length > encoded.length - encodedPosition - 1) {
+					// last chunk may be referent, try again in the other mode
+					chunkType = 'referent';
+					break;
+				}
+
+				if (length > 0) {
+					decoded = decoded + encoded.slice(encodedPosition + 1, encodedPosition + length + 1);
+				}
+
+				encodedPosition += 1 + length;
+				chunkType = 'referent';
+				break;
+			case 'referent':
+				if (length === 0) {
+					encodedPosition++;
+					chunkType = 'direct';
+					break;
+				}
+
+				const backlength = encoded.charCodeAt(encodedPosition + 1) - '0'.charCodeAt(0);
+
+				if (backlength > 9 || backlength < 0) {
+					if (length === encoded.length - encodedPosition - 1) {
+						// last chunk may be direct
+						chunkType = 'direct';
+						break;
+					}
+					throw new Error(`${encoded.charAt(encodedPosition + 1)} is out of ASCII range 0-9 at position ${encodedPosition + 1}`);
+				}
+
+				const endChunk = decoded.slice(-backlength);
+
+				if (endChunk.length >= length) {
+					decoded = decoded + endChunk.slice(0, length);
+				} else {
+					let chunk = ''
+					for (let i = 0; i < length; i++) {
+						chunk = chunk + endChunk.charAt(i % endChunk.length)
+					}
+					decoded = decoded + chunk;
+				}
+				encodedPosition += 2;
+				chunkType = 'direct';
+				break;
+		}
+	}
+
+	return decoded;
+	//return undefined;
 }
 
 
@@ -203,6 +282,58 @@ function MinimumPathSumInATriangle(ns: NS, contract: ContractInfo) {
 	}
 
 	return result[0];
+}
+
+
+function SanitizeParenthesesInExpression(ns: NS, contract: ContractInfo) {
+	const data:string = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	const isValid = (input: string): boolean => {
+		const stack: string[] = [];
+
+		for (let i = 0; i < input.length; i++) {
+			if (input[i] == '(') {
+				stack.push(input[i]);
+			} else if (input[i] == ')' && !stack.pop()) {
+				return false;
+			}
+		}
+
+		return stack.length === 0;
+	};
+
+	const permute = (input: string, changeCount: number): string[] => {
+		const fixedStrings: string[] = [];
+
+		for (let i = 0; i < input.length; i++) {
+			// recursively remove a letter until changeCount is 0
+			if (input[i] === '(' || input[i] === ')') {
+				const newStr = input.substring(0, i) + input.substring(i + 1);
+				if (changeCount > 0) {
+					fixedStrings.push(...permute(newStr, changeCount - 1));
+				} else if (isValid(newStr)) {
+					fixedStrings.push(newStr);
+				}
+			}
+		}
+
+		return fixedStrings.filter((s, i) => fixedStrings.indexOf(s) === i); // dedupe before returning
+	};
+
+	for (let i = 1; i < 10; i++) {
+		const strings = permute(data, i);
+
+		if (strings.length) {
+			//return strings;
+			ns.tprint(JSON.stringify(strings));
+			return undefined;
+		}
+	}
+
+	throw new Error("Unable to find a valid string with <10 changes");
+
+	ns.tprint(JSON.stringify(data));
+	return undefined;
 }
 
 

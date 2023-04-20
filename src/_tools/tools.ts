@@ -1,4 +1,4 @@
-import { NS, Server } from "@ns";
+import { NS, ProcessInfo, Server } from "@ns";
 
 
 export function ExploreServers(ns: NS): string[] {
@@ -98,10 +98,14 @@ export async function WaitPids(ns: NS, ...pids: number[]) {
 }
 
 
-export function TerminateScripts(ns: NS, serverNames: string[], ...scriptNames: string[]) {
-	serverNames.map(serverName =>
-		scriptNames.map(scriptName =>
-			ns.scriptKill(scriptName, serverName)));
+export function TerminateScripts(ns: NS, predicate: (script: {host: string, process: ProcessInfo}) => boolean, serverNames: string[], ...scriptNames: string[]): number[] {
+	var scriptSet = new Set<string>(scriptNames);
+
+	return serverNames
+		.flatMap(serverName => ns.ps(serverName).map(pi => ({host: serverName, process: pi})))
+		.filter(item => scriptSet.has(item.process.filename) && predicate(item))
+		.map(item => ns.kill(item.process.pid) ? item.process.pid : -1)
+		.filter(pid => pid != -1);
 }
 
 
@@ -113,6 +117,7 @@ export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolea
 		return {
 			Server: server.hostname,
 			AvailableRam: Math.max(0, server.maxRam - (server.ramUsed + padding)),
+			MaxRam: server.maxRam,
 		};
 	});
 
@@ -164,8 +169,8 @@ export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolea
 			}
 		} else {
 			const possibleServers = servers
-				.filter(s => s.AvailableRam >= script.TotalRam)
-				.sort((a, b) => a.AvailableRam - b.AvailableRam); // a-b sorts smallest first
+				.sort((a, b) => b.MaxRam - a.MaxRam) // b-a sorts biggest first; this means we don't pollute the "Active Scripts" with all the tiny servers
+				.filter(s => s.AvailableRam >= script.TotalRam);
 
 			// if none of the servers have enough ram for this script, then our planning fails
 			if (possibleServers.length == 0) {

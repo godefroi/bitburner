@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS, ProcessInfo } from "@ns";
 import { ExploreServers, TerminateScripts, CreatePlan, ExecutePlan } from "@/_tools/tools";
 import { Prepared, PrepareServer } from "@/_tools/preparation";
 import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
@@ -39,10 +39,8 @@ export async function main(ns: NS) {
 
 	while (true) {
 		// kill off any scripts that are running
-		TerminateScripts(ns, candidateServers, HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT);
-
-		// clear our comm port of any leftover data
-		ns.getPortHandle(portHandle).clear();
+		const predicate = (script: { host: string; process: ProcessInfo; }): boolean => script.process.args.length > 0 && script.process.args[0] == bestTarget;
+		TerminateScripts(ns, predicate, candidateServers, HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT);
 
 		while (!Prepared(ns, bestTarget)) {
 			await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER);
@@ -82,12 +80,27 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 		if (!Prepared(ns, bestTarget)) {
 			if (performance.now() - lastSuccess > 30000) {
 				ns.tprint(`[${bestTarget}] Unprepped during batch runs, ran batches for ${ns.tFormat(performance.now() - batchStartTime)}`);
-				// kill all our hack/grow/weaken scripts across all servers,
-				// re-prepare, and start over
+				// preemptively prepare once here very strongly, that'll let all our HWGW threads die
+				// (and possibly earn) while we work
+				await PrepareServer(ns, candidateServers, bestTarget, JOB_SPACER, false, 5);
 				return;
 			}
 
-			continue;
+			// do some "micro-sleeps" to see if we can get to a spot where we're prepared
+			let prepared = false;
+
+			for (let i = 0; i < 6; i++) {
+				await ns.sleep(JOB_SPACER * 0.35);
+				if (Prepared(ns, bestTarget)) {
+					//ns.tprint(`[${bestTarget}] Rescued during microsleep ${i}`);
+					prepared = true;
+					break;
+				}
+			}
+
+			if (!prepared) {
+				continue;
+			}
 		}
 
 		// reset our desync tracker

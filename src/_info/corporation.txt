@@ -1,4 +1,5 @@
 1e9 is 1bn
+1.5e11 is 150bn (to start a corp)
 5e12 is 5tn
 8e14 is 800tn
 

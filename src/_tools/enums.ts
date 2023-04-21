@@ -1,13 +1,25 @@
 import { NS, type CityName } from "@ns";
 
-export const CITIES = {
-	"Aevum":     "Aevum"     as CityName,
-	"Chongqing": "Chongqing" as CityName,
-	"Sector12":  "Sector12"  as CityName,
-	"NewTokyo":  "NewTokyo"  as CityName,
-	"Ishima":    "Ishima"    as CityName,
-	"Volhaven":  "Volhaven"  as CityName,
-};
+export const CITIES = Object.freeze({
+	"Aevum":     "Aevum"      as CityName,
+	"Chongqing": "Chongqing"  as CityName,
+	"Sector12":  "Sector-12"  as CityName,
+	"NewTokyo":  "New Tokyo"  as CityName,
+	"Ishima":    "Ishima"     as CityName,
+	"Volhaven":  "Volhaven"   as CityName,
+
+	length: 6,
+
+	[Symbol.iterator]: function*() {
+		yield CITIES.Aevum;
+		yield CITIES.Chongqing;
+		yield CITIES.Sector12;
+		yield CITIES.NewTokyo;
+		yield CITIES.Ishima;
+		yield CITIES.Volhaven;
+	}
+});
+
 
 /** Universities, in order of "bestness" */
 export const UNIVERSITIES = [

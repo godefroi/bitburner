@@ -112,7 +112,15 @@ export function TerminateScripts(ns: NS, predicate: (script: {host: string, proc
 export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolean, ...scripts: ScriptExecution[]): ExecutionPlan | null {
 	const servers = candidateServers.map(s => {
 		const server  = ns.getServer(s);
-		const padding = s != "home" ? 0 : (server.maxRam >= 4096 ? 1032 : 8); // if we have >= 4tb, reserve 1tb+8gb, otherwise reserve 8gb
+		const padding = s != "home" ? 0 : function() {
+			if (server.maxRam >= 4096) {
+				return (1024 + 32); // if we have >= 4tb, reserve 1tb + 32gb
+			} else if (server.maxRam >= 128) {
+				return 32; // if we have >= 128gb, reserve 32gb (to run things like gang scripts and other singularity stuff)
+			} else {
+				return 8; // if we're very ram-poor, reserve only 8gb to run simple things like find-path.js
+			}
+		}();
 
 		return {
 			Server: server.hostname,

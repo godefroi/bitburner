@@ -14,11 +14,14 @@ export async function main(ns: NS) {
 		"Algorithmic Stock Trader III":            AlgorithmicStockTraderIII,
 		"Algorithmic Stock Trader IV":             AlgorithmicStockTraderIV,
 		"Compression II: LZ Decompression":        CompressionIILZDecompression,
+		"Compression III: LZ Compression":         CompressionIIILZCompression,
 		"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
 		"Encryption II: Vigenère Cipher":          EncryptionIIVigenereCipher,
 		"Find Largest Prime Factor":               FindLargestPrimeFactor,
+		"Generate IP Addresses":                   GenerateIPAddresses,
 		"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
 		"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
+		"Proper 2-Coloring of a Graph":            Proper2ColoringOfAGraph,
 		"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
 		"Spiralize Matrix":                        SpiralizeMatrix,
 		"Total Ways to Sum II":                    TotalWaysToSumII,
@@ -34,7 +37,13 @@ export async function main(ns: NS) {
 			if (Object.hasOwn(slvers, c.Type)) {
 				const answer = slvers[c.Type](ns, c);
 				if (answer != undefined) {
-					ns.tprint(ns.codingcontract.attempt(answer, c.Filename, c.Server));
+					const result = ns.codingcontract.attempt(answer, c.Filename, c.Server);
+
+					if (result === "") {
+						ns.tprint(`BAD ATTEMPT ${c.Server} (${c.Filename}) -> ${c.Type}`);
+					} else {
+						ns.tprint(result);						
+					}
 				}
 			} else {
 				ns.tprint(`${c.Server} (${c.Filename}) -> ${c.Type}`);
@@ -178,6 +187,129 @@ function CompressionIILZDecompression(ns: NS, contract: ContractInfo) {
 }
 
 
+function CompressionIIILZCompression(ns: NS, contract: ContractInfo) {
+	const plain: string = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	// for state[i][j]:
+	//      if i is 0, we're adding a literal of length j
+	//      else, we're adding a backreference of offset i and length j
+	let curState: (string | null)[][] = Array.from(Array(10), () => Array<string | null>(10).fill(null));
+	let newState: (string | null)[][] = Array.from(Array(10), () => Array<string | null>(10));
+
+	function set(state: (string | null)[][], i: number, j: number, str: string): void {
+		const current = state[i][j];
+		if (current === null || str.length < current.length) {
+			state[i][j] = str;
+		} else if (str.length === current.length && Math.random() < 0.5) {
+			// if two strings are the same length, pick randomly so that
+			// we generate more possible inputs to Compression II
+			state[i][j] = str;
+		}
+	}
+
+	// initial state is a literal of length 1
+	curState[0][1] = "";
+
+	for (let i = 1; i < plain.length; ++i) {
+		for (const row of newState) {
+			row.fill(null);
+		}
+		const c = plain[i];
+
+		// handle literals
+		for (let length = 1; length <= 9; ++length) {
+			const string = curState[0][length];
+			if (string === null) {
+				continue;
+			}
+
+			if (length < 9) {
+				// extend current literal
+				set(newState, 0, length + 1, string);
+			} else {
+				// start new literal
+				set(newState, 0, 1, string + "9" + plain.substring(i - 9, i) + "0");
+			}
+
+			for (let offset = 1; offset <= Math.min(9, i); ++offset) {
+				if (plain[i - offset] === c) {
+					// start new backreference
+					set(newState, offset, 1, string + String(length) + plain.substring(i - length, i));
+				}
+			}
+		}
+
+		// handle backreferences
+		for (let offset = 1; offset <= 9; ++offset) {
+			for (let length = 1; length <= 9; ++length) {
+				const string = curState[offset][length];
+				if (string === null) {
+					continue;
+				}
+
+				if (plain[i - offset] === c) {
+					if (length < 9) {
+						// extend current backreference
+						set(newState, offset, length + 1, string);
+					} else {
+						// start new backreference
+						set(newState, offset, 1, string + "9" + String(offset) + "0");
+					}
+				}
+
+				// start new literal
+				set(newState, 0, 1, string + String(length) + String(offset));
+
+				// end current backreference and start new backreference
+				for (let newOffset = 1; newOffset <= Math.min(9, i); ++newOffset) {
+					if (plain[i - newOffset] === c) {
+						set(newState, newOffset, 1, string + String(length) + String(offset) + "0");
+					}
+				}
+			}
+		}
+
+		const tmpState = newState;
+		newState = curState;
+		curState = tmpState;
+	}
+
+	let result = null;
+
+	for (let len = 1; len <= 9; ++len) {
+		let string = curState[0][len];
+		if (string === null) {
+			continue;
+		}
+
+		string += String(len) + plain.substring(plain.length - len, plain.length);
+		if (result === null || string.length < result.length) {
+			result = string;
+		} else if (string.length === result.length && Math.random() < 0.5) {
+			result = string;
+		}
+	}
+
+	for (let offset = 1; offset <= 9; ++offset) {
+		for (let len = 1; len <= 9; ++len) {
+			let string = curState[offset][len];
+			if (string === null) {
+				continue;
+			}
+
+			string += String(len) + "" + String(offset);
+			if (result === null || string.length < result.length) {
+				result = string;
+			} else if (string.length === result.length && Math.random() < 0.5) {
+				result = string;
+			}
+		}
+	}
+
+	return result ?? "";
+}
+
+
 function EncryptionICaesarCipher(ns: NS, contract: ContractInfo) {
 	const data: any[]      = ns.codingcontract.getData(contract.Filename, contract.Server);
 	const text: string     = data[0];
@@ -216,6 +348,43 @@ function FindLargestPrimeFactor(ns: NS, contract: ContractInfo) {
 	}
 
 	return num;
+}
+
+
+function GenerateIPAddresses(ns: NS, contract: ContractInfo) {
+	const data: string = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const input = data.split("").map(d => parseInt(d, 10));
+	const results: string[] = [];
+
+	function generateIps(ip = "", position = 0, quads = 0, currentQuad = 0, lastDigit: number | null = null) {
+		if (quads > 3 || currentQuad >= 256) {
+			return;
+		}
+
+		if (position === input.length) {
+			results.push(ip);
+			return;
+		}
+
+		// concatenate if not leading zero
+		if (!(currentQuad === 0 && lastDigit === 0)) {
+			const updatedQuad = currentQuad * 10 + input[position]
+			if (updatedQuad < 256) {
+				generateIps(`${ip}${input[position]}`, position + 1, quads, updatedQuad, input[position]);
+			}
+		}
+
+		// start new dotted quad
+		if (position > 0 && quads < 3) {
+			generateIps(`${ip}.${input[position]}`, position + 1, quads + 1, input[position], input[position])
+		}
+	}
+
+	generateIps();
+
+	results.sort();
+	return results;
+	return undefined;
 }
 
 
@@ -282,6 +451,58 @@ function MinimumPathSumInATriangle(ns: NS, contract: ContractInfo) {
 	}
 
 	return result[0];
+}
+
+
+function Proper2ColoringOfAGraph(ns: NS, contract: ContractInfo) {
+	type GraphEdgeList = [number, Array<[number, number]>];
+	interface ColorNode { id: number, edges: Set<number>, color: number | null };
+
+	const data: GraphEdgeList = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const [nodeCount, edges] = data;
+
+	function colorNode(graph: ColorNode[], id: number, color: number = 0): boolean {
+		const node = graph[id];
+		let valid = true;
+
+		if (node.color === null) {
+			node.color = color;
+
+			for (const edge of node.edges) {
+				valid &&= colorNode(graph, edge, color === 0 ? 1 : 0);
+			}
+
+			return valid;
+		} else if (node.color === color) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	const graph = Array.from(new Array(nodeCount), (_v, i) => ({ id: i, edges: new Set(), color: null } as ColorNode));
+
+	for (const [a, b] of edges) {
+		graph[a].edges.add(b);
+		graph[b].edges.add(a);
+	}
+
+	let valid = colorNode(graph, 0, 0);
+
+	if (valid) {
+		let uncolored = graph.filter((node) => node.color === null);
+
+		while (uncolored.length) {
+			valid &&= colorNode(graph, uncolored[0].id, 0);
+			uncolored = graph.filter((node) => node.color === null);
+		}
+	}
+
+	if (valid) {
+		return graph.map((node) => node.color);
+	} else {
+		return [];
+	}
 }
 
 

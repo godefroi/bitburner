@@ -1,5 +1,5 @@
-import { NS } from "@ns";
-import { FACTIONS, FactionType } from "@/_tools/faction";
+import { type CrimeType, NS, CrimeStats } from "@ns";
+import { CRIMES } from "./_tools/enums";
 
 export async function main(ns: NS) {
 	// const servers = tools.ExploreServers(ns)
@@ -20,70 +20,14 @@ export async function main(ns: NS) {
 
 	// }
 
-	const ownedAugs        = ns.singularity.getOwnedAugmentations(true);
-	const joinedFactions   = ns.getPlayer().factions;
-	const relevantFactions = FACTIONS
-		.filter(f => !joinedFactions.includes(f.name))
-		.filter(f => f.type != FactionType.Endgame)
-		.filter(f => ns.singularity.getAugmentationsFromFaction(f.name).some(aug => !ownedAugs.includes(aug)));
+	interface CrimeData {type: CrimeType, chance: number, stats: CrimeStats};
+	const moneyPerHour = (c: CrimeData) => ((c.stats.money / c.stats.time) * (1000 * 60 * 60)) * c.chance;
 
-	ns.tprint("Relevant pending factions:")
-	for (const faction of relevantFactions) {
-		ns.tprint(`\t${faction.name} (${FactionType[faction.type]})`);
-	}
+	Array.from(CRIMES)
+		.map(ct => ({type: ct, chance: ns.singularity.getCrimeChance(ct), stats: ns.singularity.getCrimeStats(ct)}))
+		.sort((a, b) => moneyPerHour(a) - moneyPerHour(b))
+		.forEach(c => ns.tprint(`${c.type.padEnd(16)} $${ns.formatNumber(c.stats.money)}, ${ns.tFormat(c.stats.time).padEnd(20)}, ${c.chance} -> ${ns.formatNumber(moneyPerHour(c))}`));
 
-	ns.tprint("");
-	ListOfferedAugmentations(ns);
-}
-
-function ListOfferedAugmentations(ns: NS) {
-	const ownedAugs     = new Set(ns.singularity.getOwnedAugmentations(true));
-	const availableAugs = ns.getPlayer().factions
-		.flatMap(factionName => GetOfferedAugmentations(ns, factionName, ownedAugs))
-		.filter(aug => aug.PrerequisitesMet && aug.RepRequirementMet)
-		.sort((a, b) => b.Price - a.Price);
-
-	for (const aug of availableAugs) {
-		ns.tprint(`${aug.Name.padEnd(45)} | ${ns.formatNumber(aug.Price).padEnd(8)} | ${aug.FactionName.padEnd(20)} |`);
-	}
-}
-
-
-function GetOfferedAugmentations(ns: NS, factionName: string, ownedAugmentations: Set<string>) {
-	const factionRep = ns.singularity.getFactionRep(factionName);
-
-	return ns.singularity.getAugmentationsFromFaction(factionName)
-		.filter(augName => !ownedAugmentations.has(augName))
-		.map(augName => {
-			const prereqs = ns.singularity.getAugmentationPrereq(augName);
-			const repReq  = ns.singularity.getAugmentationRepReq(augName);
-			
-			return {
-				Name: augName,
-				FactionName: factionName,
-				BasePrice: ns.singularity.getAugmentationBasePrice(augName),
-				Price: ns.singularity.getAugmentationPrice(augName),
-				RepRequired: repReq,
-				RepRequirementMet: factionRep >= repReq,
-				Prerequisites: prereqs,
-				PrerequisitesMet: prereqs.every(prereq => ownedAugmentations.has(prereq)),
-				Stats: ns.singularity.getAugmentationStats(augName)
-			};
-		});
-}
-
-class AugmentationInformation {
-	name: string;
-	faction: string;
-	basePrice: number;
-	price: number;
-	repRequired: number;
-
-	constructor(ns: NS, name: string, faction: string, factionRep: number) {
-		this.name        = name;
-		this.faction     = faction;
-		this.basePrice   = ns.singularity.getAugmentationBasePrice(name),
-		this.price       = ns.singularity.getAugmentationPrice(name),
-		this.repRequired = ns.singularity.getAugmentationRepReq(name);
-	}
+	return;
+	//ns.singularity.cri
 }

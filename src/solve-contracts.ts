@@ -23,6 +23,7 @@ export async function main(ns: NS) {
 		"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
 		"Proper 2-Coloring of a Graph":            Proper2ColoringOfAGraph,
 		"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
+		"Shortest Path in a Grid":                 ShortestPathInAGrid,
 		"Spiralize Matrix":                        SpiralizeMatrix,
 		"Total Ways to Sum II":                    TotalWaysToSumII,
 		"Unique Paths in a Grid II":               UniquePathsInAGridII,
@@ -507,7 +508,7 @@ function Proper2ColoringOfAGraph(ns: NS, contract: ContractInfo) {
 
 
 function SanitizeParenthesesInExpression(ns: NS, contract: ContractInfo) {
-	const data:string = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const data: string = ns.codingcontract.getData(contract.Filename, contract.Server);
 
 	const isValid = (input: string): boolean => {
 		const stack: string[] = [];
@@ -555,6 +556,69 @@ function SanitizeParenthesesInExpression(ns: NS, contract: ContractInfo) {
 
 	ns.tprint(JSON.stringify(data));
 	return undefined;
+}
+
+
+function ShortestPathInAGrid(ns: NS, contract: ContractInfo) {
+	const data: number[][] = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const width    = data[0].length;
+	const height   = data.length;
+	const dstY     = height - 1;
+	const dstX     = width - 1;
+	const distance = new Array(height);
+	const queue: [number, number][] = [];
+
+	for (let y = 0; y < height; y++) {
+		distance[y] = new Array(width).fill(Infinity);
+		//prev[y] = new Array(width).fill(undefined) as [undefined];
+	}
+
+	function validPosition(y: number, x: number) {
+		return y >= 0 && y < height && x >= 0 && x < width && data[y][x] == 0;
+	}
+
+	// List in-bounds and passable neighbors
+	function* neighbors(y: number, x: number) {
+		if (validPosition(y - 1, x)) yield [y - 1, x]; // Up
+		if (validPosition(y + 1, x)) yield [y + 1, x]; // Down
+		if (validPosition(y, x - 1)) yield [y, x - 1]; // Left
+		if (validPosition(y, x + 1)) yield [y, x + 1]; // Right
+	}
+
+	// Prepare starting point
+	distance[0][0] = 0;
+
+	//Simplified version. d < distance[yN][xN] should never happen for BFS if d != infinity, so we skip changeweight and simplify implementation
+	//algo always expands shortest path, distance != infinity means a <= lenght path reaches it, only remaining case to solve is infinity    
+	queue.push([0, 0]);
+	while (queue.length > 0) {
+		const [y, x] = queue.shift()!;
+		for (const [yN, xN] of neighbors(y, x)) {
+			if (distance[yN][xN] == Infinity) {
+				queue.push([yN, xN])
+				distance[yN][xN] = distance[y][x] + 1
+			}
+		}
+	}
+
+	// No path at all?
+	if (distance[dstY][dstX] == Infinity) return "";
+
+	//trace a path back to start
+	let path = ""
+	let [yC, xC] = [dstY, dstX]
+	while (xC != 0 || yC != 0) {
+		const dist = distance[yC][xC];
+		for (const [yF, xF] of neighbors(yC, xC)) {
+			if (distance[yF][xF] == dist - 1) {
+				path = (xC == xF ? (yC == yF + 1 ? "D" : "U") : (xC == xF + 1 ? "R" : "L")) + path;
+				[yC, xC] = [yF, xF]
+				break
+			}
+		}
+	}
+
+	return path;
 }
 
 

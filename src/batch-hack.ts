@@ -12,9 +12,10 @@ export async function main(ns: NS) {
 	ns.disableLog("scp");
 	ns.disableLog("exec");
 	ns.disableLog("getServerMaxRam");
+	ns.disableLog("getServerUsedRam");
 
-	if (ns.args.length < 2) {
-		ns.tprint("USAGE: batch-hack.js {target|-} {percentage} [includeHome = false]");
+	if (ns.args.length < 3) {
+		ns.tprint("USAGE: batch-hack.js {target|-} {percentage} {includeHome}");
 		return;
 	}
 

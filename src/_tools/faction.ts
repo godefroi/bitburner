@@ -75,7 +75,7 @@ export enum FactionType {
 	Endgame
 }
 
-export const FACTION_NAMES = {
+export const FACTION_NAMES = Object.freeze({
 	CyberSec: "CyberSec",
 	NiteSec: "NiteSec",
 	TheBlackHand: "The Black Hand",
@@ -110,7 +110,7 @@ export const FACTION_NAMES = {
 	Bladeburners: "Bladeburners",
 	ChurchOfTheMachineGod: "Church of the Machine God",
 	ShadowsOfAnarchy: "Shadows of Anarchy"
-};
+});
 
 export const FACTIONS: Faction[] = [
 	new Faction({ name: FACTION_NAMES.CyberSec,          type: FactionType.EarlyGame, backdoorServer: "CSEC" }),

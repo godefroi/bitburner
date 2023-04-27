@@ -82,6 +82,7 @@ export async function PrepareServer(ns: NS, candidateServers: string[], hostName
 						}
 
 						ns.tprint(`[${hostName}] Prepping using strategy git-r-done-weaken; expected duration is ${ns.tFormat(weakenTime)}`);
+						//ns.tprint(JSON.stringify(plan));
 						await WaitPids(ns, ...ExecutePlan(ns, plan));
 						return;
 					}

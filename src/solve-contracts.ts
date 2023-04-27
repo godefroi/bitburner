@@ -17,6 +17,7 @@ export async function main(ns: NS) {
 		"Compression III: LZ Compression":         CompressionIIILZCompression,
 		"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
 		"Encryption II: Vigenère Cipher":          EncryptionIIVigenereCipher,
+		"Find All Valid Math Expressions":         FindAllValidMathExpressions,
 		"Find Largest Prime Factor":               FindLargestPrimeFactor,
 		"Generate IP Addresses":                   GenerateIPAddresses,
 		"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
@@ -25,7 +26,9 @@ export async function main(ns: NS) {
 		"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
 		"Shortest Path in a Grid":                 ShortestPathInAGrid,
 		"Spiralize Matrix":                        SpiralizeMatrix,
+		"Subarray with Maximum Sum":               SubarrayWithMaximumSum,
 		"Total Ways to Sum II":                    TotalWaysToSumII,
+		"Unique Paths in a Grid I":                UniquePathsInAGridI,
 		"Unique Paths in a Grid II":               UniquePathsInAGridII,
 	};
 
@@ -339,6 +342,41 @@ function EncryptionIIVigenereCipher(ns: NS, contract: ContractInfo) {
 }
 
 
+function FindAllValidMathExpressions(ns: NS, contract: ContractInfo) {
+	let [num, target]: [string, number] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	function helper(res: string[], path: string, num: string, target: number, pos: number, evaluated: number, multed: number): void {
+		if (pos === num.length) {
+			if (target === evaluated) {
+				res.push(path);
+			}
+			return;
+		}
+
+		for (let i = pos; i < num.length; ++i) {
+			if (i != pos && num[pos] == "0") {
+				break;
+			}
+			const cur = parseInt(num.substring(pos, i + 1));
+
+			if (pos === 0) {
+				helper(res, path + cur, num, target, i + 1, cur, cur);
+			} else {
+				helper(res, path + "+" + cur, num, target, i + 1, evaluated + cur, cur);
+				helper(res, path + "-" + cur, num, target, i + 1, evaluated - cur, -cur);
+				helper(res, path + "*" + cur, num, target, i + 1, evaluated - multed + multed * cur, multed * cur);
+			}
+		}
+	}
+
+	const result: string[] = [];
+
+	helper(result, "", num, target, 0, 0, 0);
+
+	return result;
+}
+
+
 function FindLargestPrimeFactor(ns: NS, contract: ContractInfo) {
 	let num: number = ns.codingcontract.getData(contract.Filename, contract.Server);
 
@@ -510,52 +548,47 @@ function Proper2ColoringOfAGraph(ns: NS, contract: ContractInfo) {
 function SanitizeParenthesesInExpression(ns: NS, contract: ContractInfo) {
 	const data: string = ns.codingcontract.getData(contract.Filename, contract.Server);
 
-	const isValid = (input: string): boolean => {
-		const stack: string[] = [];
+	let left = 0;
+	let right = 0;
+	const res: string[] = [];
 
-		for (let i = 0; i < input.length; i++) {
-			if (input[i] == '(') {
-				stack.push(input[i]);
-			} else if (input[i] == ')' && !stack.pop()) {
-				return false;
-			}
-		}
-
-		return stack.length === 0;
-	};
-
-	const permute = (input: string, changeCount: number): string[] => {
-		const fixedStrings: string[] = [];
-
-		for (let i = 0; i < input.length; i++) {
-			// recursively remove a letter until changeCount is 0
-			if (input[i] === '(' || input[i] === ')') {
-				const newStr = input.substring(0, i) + input.substring(i + 1);
-				if (changeCount > 0) {
-					fixedStrings.push(...permute(newStr, changeCount - 1));
-				} else if (isValid(newStr)) {
-					fixedStrings.push(newStr);
-				}
-			}
-		}
-
-		return fixedStrings.filter((s, i) => fixedStrings.indexOf(s) === i); // dedupe before returning
-	};
-
-	for (let i = 1; i < 10; i++) {
-		const strings = permute(data, i);
-
-		if (strings.length) {
-			//return strings;
-			ns.tprint(JSON.stringify(strings));
-			return undefined;
+	for (let i = 0; i < data.length; ++i) {
+		if (data[i] === "(") {
+			++left;
+		} else if (data[i] === ")") {
+			left > 0 ? --left : ++right;
 		}
 	}
 
-	throw new Error("Unable to find a valid string with <10 changes");
+	function dfs(pair: number, index: number, left: number, right: number, s: string, solution: string, res: string[]): void {
+		if (s.length === index) {
+			if (left === 0 && right === 0 && pair === 0) {
+				for (let i = 0; i < res.length; i++) {
+					if (res[i] === solution) {
+						return;
+					}
+				}
+				res.push(solution);
+			}
+			return;
+		}
 
-	ns.tprint(JSON.stringify(data));
-	return undefined;
+		if (s[index] === "(") {
+			if (left > 0) {
+				dfs(pair, index + 1, left - 1, right, s, solution, res);
+			}
+			dfs(pair + 1, index + 1, left, right, s, solution + s[index], res);
+		} else if (s[index] === ")") {
+			if (right > 0) dfs(pair, index + 1, left, right - 1, s, solution, res);
+			if (pair > 0) dfs(pair - 1, index + 1, left, right, s, solution + s[index], res);
+		} else {
+			dfs(pair, index + 1, left, right, s, solution + s[index], res);
+		}
+	}
+
+	dfs(0, 0, left, right, data, "", res);
+
+	return res;
 }
 
 
@@ -708,6 +741,17 @@ function SpiralizeMatrix(ns: NS, contract: ContractInfo) {
 }
 
 
+function SubarrayWithMaximumSum(ns: NS, contract: ContractInfo) {
+	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	for (let i = 1; i < data.length; i++) {
+		data[i] = Math.max(data[i], data[i] + data[i - 1]);
+	}
+
+	return Math.max(...data);
+}
+
+
 function TotalWaysToSumII(ns: NS, contract: ContractInfo) {
 	const data: any[]       = ns.codingcontract.getData(contract.Filename, contract.Server);
 	const target: number    = data[0];
@@ -740,6 +784,25 @@ function TotalWaysToSumII(ns: NS, contract: ContractInfo) {
 	return computeSumPermutationsII(target, numbers);
 }
 
+function UniquePathsInAGridI(ns: NS, contract: ContractInfo) {
+	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	const [n, m] = data; // Number of [rows, columns]
+	const currentRow = [];
+	currentRow.length = n;
+
+	for (let i = 0; i < n; i++) {
+		currentRow[i] = 1;
+	}
+
+	for (let row = 1; row < m; row++) {
+		for (let i = 1; i < n; i++) {
+			currentRow[i] += currentRow[i - 1];
+		}
+	}
+
+	return currentRow[n - 1];
+}
 
 function UniquePathsInAGridII(ns: NS, contract: ContractInfo) {
 	const map: number[][] = ns.codingcontract.getData(contract.Filename, contract.Server);

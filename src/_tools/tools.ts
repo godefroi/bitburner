@@ -1,7 +1,7 @@
 import { NS, ProcessInfo, Server } from "@ns";
 
 
-export function ExploreServers(ns: NS): string[] {
+export function ExploreServers(ns: NS, includeHacknet: boolean = false): string[] {
 	const exploredSet = new Set(["home"]);
 
 	for (const toExplore of exploredSet) {
@@ -12,7 +12,7 @@ export function ExploreServers(ns: NS): string[] {
 
 	exploredSet.delete("home");
 
-	return Array.from(exploredSet);
+	return Array.from(exploredSet).filter(s => includeHacknet || !s.startsWith("hacknet-server-"));
 }
 
 

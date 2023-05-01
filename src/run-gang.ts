@@ -1,7 +1,13 @@
 import { Gang, GangMemberAscension, GangMemberInfo, GangOtherInfo, NS } from "@ns";
+import { COMBAT_SKILLS, CRIMES } from "@/_tools/enums";
+import { FACTIONS, FACTION_NAMES } from "./_tools/faction";
+
+// https://www.reddit.com/r/Bitburner/comments/e4z6ju/wip_crime_gang_bladeburner_guide/
 
 const discountThresh  = 0.8;
 const wantedPenThresh = 0.05;
+
+const NEURORECEPTOR_MANAGEMENT_IMPLANT = "Neuroreceptor Management Implant";
 
 enum GangTask {
 	TrainCombat = "Train Combat",
@@ -26,20 +32,33 @@ interface TaskGainInformation {
 type TaskGainInformationCompareFunc = (a: TaskGainInformation, b: TaskGainInformation) => number;
 
 export async function main(ns: NS) {
-	//ns.tprint(ns.gang.inGang());
-	//ns.gang.createGang()
-	//ns.gang.getGangInformation().
-	//ns.tprint(ns.heart.break());
-	//ns.getPlayer().skills.
-	//ns.tprint(CurrentKarma(ns));
+	// Array.from(CRIMES)
+	// 	.map(c => ({
+	// 		crime: c,
+	// 		chance: ns.singularity.getCrimeChance(c),
+	// 		stats: ns.singularity.getCrimeStats(c),
+	// 	})).sort((a, b) => ((b.stats.karma / b.stats.time) * a.chance) - ((a.stats.karma / a.stats.time) * b.chance))
+	// 	.forEach(c => {
+	// 		const karmaPerHr = (c.stats.karma / c.stats.time) * 1000 * 60 * 60;
+	// 		ns.tprint(`${c.crime} karma ${c.stats.karma} time ${c.stats.time} chance ${ns.formatPercent(c.chance)} karma/hr ${ns.formatNumber(karmaPerHr)} adj: ${ns.formatNumber(karmaPerHr * c.chance)}`);
+	// 	});
+
+	// below str 100, mug, then homicide?
+	// karma target is -5.4e4 (-54000)
+
+	if (!ns.gang.inGang()) {
+		//await JoinGang(ns);
+		throw new Error("Join a gang first, you're RAM poor!");
+	}
 
 	if (!ns.fileExists("Formulas.exe", "home")) {
-		ns.singularity.purchaseTor();
-		
-		if (!ns.singularity.purchaseProgram("Formulas.exe")) {
-			ns.tprint(`Unable to purchase Formulas.exe; exiting.`);
-			return;
-		}
+		throw new Error("Buy Formulas.exe first!");
+		// ns.singularity.purchaseTor();
+
+		// if (!ns.singularity.purchaseProgram("Formulas.exe")) {
+		// 	ns.tprint(`Unable to purchase Formulas.exe; exiting.`);
+		// 	return;
+		// }
 	}
 
 	let tickInfo: WarfareTickInfo = {
@@ -58,12 +77,68 @@ export async function main(ns: NS) {
 		tickInfo = ManageTerritoryWarfare(ns, tickInfo);
 
 		if (!tickInfo.inWarfare) {
-//ns.tprint(`managing tasks`);
 			ManageMemberTasks(ns);
 		}
 
 		await ns.sleep(500);
 	}
+}
+
+
+async function JoinGang(ns: NS): Promise<boolean> {
+	// const snakes = FACTIONS.filter(f => f.name == FACTION_NAMES.SlumSnakes)[0];
+
+	// let focus = !ns.singularity.getOwnedAugmentations(false).includes(NEURORECEPTOR_MANAGEMENT_IMPLANT);
+
+	// if (ns.gang.inGang()) {
+	// 	return true;
+	// }
+
+	// while (true) {
+	// 	let player = ns.getPlayer();
+
+	// 	if (player.factions.includes(FACTION_NAMES.SlumSnakes)) {
+	// 		break;
+	// 	}
+
+	// 	if (ns.singularity.checkFactionInvitations().includes(FACTION_NAMES.SlumSnakes)) {
+	// 		ns.singularity.joinFaction(FACTION_NAMES.SlumSnakes);
+	// 		break;
+	// 	}
+
+	// 	// we haven't been invited to slum snakes; satisfy their requirements
+	// 	while (player.skills.strength < snakes.combatStats
+	// 		|| player.skills.defense < snakes.combatStats
+	// 		|| player.skills.dexterity < snakes.combatStats
+	// 		|| player.skills.agility < snakes.combatStats
+	// 		|| player.money < snakes.cashOnHand
+	// 		|| CurrentKarma(ns) < snakes.karma) {
+	// 		await ns.sleep(ns.singularity.commitCrime(CRIMES.mug, focus));
+	// 	}
+
+	// 	if (ns.singularity.isFocused()) {
+	// 		ns.singularity.setFocus(false);
+	// 	}
+
+	// 	await ns.sleep(1000);
+	// }
+
+	// if (ns.getPlayer().bitNodeN != 2) {
+	// 	while (CurrentKarma(ns) > -5.4e4) {
+	// 		const crime = ns.getPlayer().skills.strength >= 100 ? ns.enums.CrimeType.homicide : ns.enums.CrimeType.mug;
+	// 		await ns.sleep(ns.singularity.commitCrime(crime, focus));
+
+	// 		if (focus && !ns.singularity.isFocused()) {
+	// 			focus = false;
+	// 		}
+	// 	}
+	// }
+
+	// if (!ns.gang.createGang("Slum Snakes")) {
+	// 	throw new Error("Unable to create gang!");
+	// }
+
+	return true;
 }
 
 
@@ -236,9 +311,9 @@ function ManageMemberTasks(ns: NS) {
 				moneyGain: ns.formulas.gang.moneyGain(myGang, memberInfo, taskStats)}))
 			.sort(sortFunc);
 
-			if (ns.gang.getBonusTime() > 5000 && (myGang.territoryClashChance === 0 || memberInfo.def > 600) && myGang.territory < 1 && false) {
+		if (ns.gang.getBonusTime() > 5000 && (myGang.territoryClashChance === 0 || memberInfo.def > 600) && myGang.territory < 1) {
 			ns.gang.setMemberTask(memberName, GangTask.TerritoryWarfare);
-			ns.tprint(`member ${memberName} task ${GangTask.TerritoryWarfare}`);
+			//ns.tprint(`member ${memberName} task ${GangTask.TerritoryWarfare}`);
 		} else {
 			for (const x of arrayTaskObjects) {
 				if (x.respGain < x.wantGain * 99) {

@@ -5,14 +5,21 @@ type ContractAnswer = (string | number | any[] | undefined);
 type ContractSolver = (ns: NS, contract: ContractInfo) => ContractAnswer;
 
 export async function main(ns: NS) {
+	ns.disableLog("scan");
+	ns.disableLog("sleep");
+
 	const flags = ns.flags([
 		["once", false]]);
 
 	const once = Boolean(flags["once"]);
 	const slvers: Record<string, ContractSolver> = {
 		"Algorithmic Stock Trader I":              AlgorithmicStockTraderI,
+		"Algorithmic Stock Trader II":             AlgorithmicStockTraderII,
 		"Algorithmic Stock Trader III":            AlgorithmicStockTraderIII,
 		"Algorithmic Stock Trader IV":             AlgorithmicStockTraderIV,
+		"Array Jumping Game":                      ArrayJumpingGame,
+		"Array Jumping Game II":                   ArrayJumpingGameII,
+		"Compression I: RLE Compression":          CompressionIRLECompression,
 		"Compression II: LZ Decompression":        CompressionIILZDecompression,
 		"Compression III: LZ Compression":         CompressionIIILZCompression,
 		"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
@@ -20,13 +27,16 @@ export async function main(ns: NS) {
 		"Find All Valid Math Expressions":         FindAllValidMathExpressions,
 		"Find Largest Prime Factor":               FindLargestPrimeFactor,
 		"Generate IP Addresses":                   GenerateIPAddresses,
+		"HammingCodes: Encoded Binary to Integer": HammingCodesEncodedBinaryToInteger,
 		"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
+		"Merge Overlapping Intervals":             MergeOverlappingIntervals,
 		"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
 		"Proper 2-Coloring of a Graph":            Proper2ColoringOfAGraph,
 		"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
 		"Shortest Path in a Grid":                 ShortestPathInAGrid,
 		"Spiralize Matrix":                        SpiralizeMatrix,
 		"Subarray with Maximum Sum":               SubarrayWithMaximumSum,
+		"Total Ways to Sum":                       TotalWaysToSum,
 		"Total Ways to Sum II":                    TotalWaysToSumII,
 		"Unique Paths in a Grid I":                UniquePathsInAGridI,
 		"Unique Paths in a Grid II":               UniquePathsInAGridII,
@@ -108,6 +118,19 @@ function AlgorithmicStockTraderI(ns: NS, contract: ContractInfo) {
 }
 
 
+function AlgorithmicStockTraderII(ns: NS, contract: ContractInfo) {
+	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	let profit = 0;
+
+	for (let p = 1; p < data.length; ++p) {
+		profit += Math.max(data[p] - data[p - 1], 0)
+	}
+
+	return profit;	
+}
+
+
 function AlgorithmicStockTraderIII(ns: NS, contract: ContractInfo) {
 	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
 
@@ -119,6 +142,61 @@ function AlgorithmicStockTraderIV(ns: NS, contract: ContractInfo) {
 	const data: any[] = ns.codingcontract.getData(contract.Filename, contract.Server);
 
 	return AlgorithmicStockTrader(data[1] as number[], data[0] as number);
+}
+
+
+function ArrayJumpingGame(ns: NS, contract: ContractInfo) {
+	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	let i = 0;
+
+	for (let reach = 0; i < data.length && i <= reach; ++i) {
+		reach = Math.max(i + data[i], reach);
+	}
+
+	return i === data.length ? 1 : 0;
+}
+
+
+function ArrayJumpingGameII(ns: NS, contract: ContractInfo) {
+	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	if (data[0] == 0) {
+		return 0;
+	}
+
+	const n = data.length;
+	let reach = 0;
+	let jumps = 0;
+	let lastJump = -1;
+
+	while (reach < n - 1) {
+		let jumpedFrom = -1;
+
+		for (let i = reach; i > lastJump; i--) {
+			if (i + data[i] > reach) {
+				reach = i + data[i];
+				jumpedFrom = i;
+			}
+		}
+
+		if (jumpedFrom === -1) {
+			jumps = 0;
+			break;
+		}
+
+		lastJump = jumpedFrom;
+		jumps++;
+	}
+
+	return jumps;
+}
+
+
+function CompressionIRLECompression(ns: NS, contract: ContractInfo) {
+	const data: string = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	return data.replace(/([\w])\1{0,8}/g, (group, chr) => group.length + chr);
 }
 
 
@@ -427,6 +505,64 @@ function GenerateIPAddresses(ns: NS, contract: ContractInfo) {
 }
 
 
+function HammingCodesEncodedBinaryToInteger(ns: NS, contract: ContractInfo) {
+	const data: string = ns.codingcontract.getData(contract.Filename, contract.Server);
+
+	//check for altered bit and decode
+	const build = data.split(""); // ye, an array for working, again
+	const testArray = []; //for the "truthtable". if any is false, the data has an altered bit, will check for and fix it
+	const sumParity = Math.ceil(Math.log2(data.length)); // sum of parity for later use
+	const count = (arr: string[], val: string) => arr.reduce((a, v) => (v === val ? a + 1 : a), 0);
+	// the count.... again ;)
+	let overallParity = build.splice(0, 1).join(""); // store first index, for checking in next step and fix the build properly later on
+	testArray.push(overallParity == (count(build, "1") % 2).toString() ? true : false); // first check with the overall parity bit
+
+	for (let i = 0; i < sumParity; i++) {
+		// for the rest of the remaining parity bits we also "check"
+		const tempIndex = Math.pow(2, i) - 1; // get the parityBits Index
+		const tempStep = tempIndex + 1; // set the stepsize
+		const tempData = [...build]; // get a "copy" of the build-data for working
+		const tempArray = []; // init empty array for "testing"
+		while (tempData[tempIndex] != undefined) {
+			// extract from the copied data until the "starting" index is undefined
+			const temp = [...tempData.splice(tempIndex, tempStep * 2)]; // extract 2*stepsize
+			tempArray.push(...temp.splice(0, tempStep)); // and cut again for keeping first half
+		}
+		const tempParity = tempArray.shift(); // and again save the first index separated for checking with the rest of the data
+		testArray.push(tempParity == (count(tempArray, "1") % 2).toString() ? true : false);
+		// is the tempParity the calculated data? push answer into the 'truthtable'
+	}
+
+	let fixIndex = 0; // init the "fixing" index and start with 0
+
+	for (let i = 1; i < sumParity + 1; i++) {
+		// simple binary adding for every boolean in the testArray, starting from 2nd index of it
+		fixIndex += testArray[i] ? 0 : Math.pow(2, i) / 2;
+	}
+
+	build.unshift(overallParity); // now we need the "overall" parity back in it's place
+
+	// try fix the actual encoded binary string if there is an error
+	if (fixIndex > 0 && testArray[0] == false) { // if the overall is false and the sum of calculated values is greater equal 0, fix the corresponding hamming-bit           
+		build[fixIndex] = build[fixIndex] == "0" ? "1" : "0";
+	} else if (testArray[0] == false) { // otherwise, if the the overallparity is the only wrong, fix that one           
+		overallParity = overallParity == "0" ? "1" : "0";
+	} else if (testArray[0] == true && testArray.some((truth) => truth == false)) {
+		return 0; // ERROR: There's some strange going on... 2 bits are altered? How? This should not happen
+	}
+
+	// oof.. halfway through... we fixed an possible altered bit, now "extract" the parity-bits from the build
+	for (let i = sumParity; i >= 0; i--) {
+		// start from the last parity down the 2nd index one
+		build.splice(Math.pow(2, i), 1);
+	}
+
+	build.splice(0, 1); // remove the overall parity bit and we have our binary value
+
+	return parseInt(build.join(""), 2); // parse the integer with radix 2 and we're done!
+}
+
+
 function HammingCodesIntegerToEncodedBinary(ns: NS, contract: ContractInfo) {
 	const num: number = ns.codingcontract.getData(contract.Filename, contract.Server);
 	const digits = num.toString(2).split('').map(s => Number(s));
@@ -468,6 +604,29 @@ function HammingCodesIntegerToEncodedBinary(ns: NS, contract: ContractInfo) {
 	}
 
 	return encoded.join("");
+}
+
+
+function MergeOverlappingIntervals(ns: NS, contract: ContractInfo) {
+	const data: number[][] = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const intervals = data.sort((a, b) => a[0] - b[0]);
+	const result: number[][] = [];
+	let start: number = intervals[0][0];
+	let end: number = intervals[0][1];
+
+	for (const interval of intervals) {
+		if (interval[0] <= end) {
+			end = Math.max(end, interval[1]);
+		} else {
+			result.push([start, end]);
+			start = interval[0];
+			end = interval[1];
+		}
+	}
+
+	result.push([start, end]);
+
+	return result;
 }
 
 
@@ -752,6 +911,23 @@ function SubarrayWithMaximumSum(ns: NS, contract: ContractInfo) {
 }
 
 
+function TotalWaysToSum(ns: NS, contract: ContractInfo) {
+	const data: number = ns.codingcontract.getData(contract.Filename, contract.Server);
+	const ways: number[] = [1];
+
+	ways.length = data + 1;
+	ways.fill(0, 1);
+
+	for (let i = 1; i < data; ++i) {
+		for (let j: number = i; j <= data; ++j) {
+			ways[j] += ways[j - i];
+		}
+	}
+
+	return ways[data];
+}
+
+
 function TotalWaysToSumII(ns: NS, contract: ContractInfo) {
 	const data: any[]       = ns.codingcontract.getData(contract.Filename, contract.Server);
 	const target: number    = data[0];
@@ -784,6 +960,7 @@ function TotalWaysToSumII(ns: NS, contract: ContractInfo) {
 	return computeSumPermutationsII(target, numbers);
 }
 
+
 function UniquePathsInAGridI(ns: NS, contract: ContractInfo) {
 	const data: number[] = ns.codingcontract.getData(contract.Filename, contract.Server);
 
@@ -803,6 +980,7 @@ function UniquePathsInAGridI(ns: NS, contract: ContractInfo) {
 
 	return currentRow[n - 1];
 }
+
 
 function UniquePathsInAGridII(ns: NS, contract: ContractInfo) {
 	const map: number[][] = ns.codingcontract.getData(contract.Filename, contract.Server);

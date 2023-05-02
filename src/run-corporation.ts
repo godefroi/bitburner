@@ -129,7 +129,7 @@ export async function main(ns: NS) {
 		},
 		{
 			name: "Grow Development Office",
-			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Aevum).size > 1000 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Aevum, 3),
+			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Aevum).size > 500 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Aevum, 3),
 			executeFunction: async (ns: NS, division: Division, products: CorpProduct[]) => {
 				// hire 3 employees into the appropriate place
 				// you can deprio business and ops in main
@@ -158,6 +158,22 @@ export async function main(ns: NS) {
 			}
 		},
 		{
+			name: "Grow Non-development Offices",
+			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Sector12).size > 300 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Sector12, 3) * (CITIES.length - 1) * 2, // 3 because this should be deemphasized a bit
+			executeFunction: async (ns: NS, division: Division, products: CorpProduct[]) => {
+				for (const city of CITIES) {
+					// skip Aevum, that's the development city
+					if (city == CITIES.Aevum) {
+						continue;
+					}
+
+					const office = ns.corporation.getOffice(division.name, city);
+
+					await EnsureEmployees(ns, division.name, city, EmployeeJob.ResearchDev, office.employeeJobs["Research & Development"] + 3);
+				}
+			}
+		},
+		{
 			name: "Develop New Product",
 			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => {
 				// cost is infinity if we have one developing, otherwise low
@@ -179,10 +195,6 @@ export async function main(ns: NS) {
 				return -1;
 			},
 			executeFunction: async (ns: NS, division: Division, products: CorpProduct[]) => {
-				if (products.length == 0) {
-					return;
-				}
-
 				// discontinue oldest product if necessary
 				if (products.length >= 3) {
 					products.sort((a, b) => a.version - b.version);
@@ -190,7 +202,7 @@ export async function main(ns: NS) {
 				}
 
 				// develop new product
-				const newName   = `${division.name } v${products[products.length - 1].version + 1}`;
+				const newName   = products.length == 0 ? `${division.name} v1` : `${division.name } v${products[products.length - 1].version + 1}`;
 				const devInvest = Math.min((ns.corporation.getCorporation().funds / 20) / 2);
 
 				ns.corporation.makeProduct(division.name, CITIES.Aevum, newName, devInvest, devInvest);
@@ -268,7 +280,7 @@ export async function main(ns: NS) {
 				const costTaII = haveTaII ? 0 : ns.corporation.getResearchCost(division.name, MARKET_TA_II);
 
 				// if we can afford the AI upgrades and we don't have them, we need them
-				if (!(haveTaI && haveTaII) && division.research > (costTaI + costTaII)) {
+				if (!(haveTaI && haveTaII) && division.research > ((costTaI + costTaII) * 2)) {
 					ns.corporation.research(division.name, MARKET_TA_I);
 					ns.corporation.research(division.name, MARKET_TA_II);
 					return;
@@ -291,7 +303,7 @@ export async function main(ns: NS) {
 				const minLevel = Math.min(...currentUpgrades.map(u => u.currentLevel));
 
 				// don't upgrade past 350
-				if (minLevel >= 350) {
+				if (minLevel >= 100) {
 					return Infinity;
 				}
 

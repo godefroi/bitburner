@@ -1,9 +1,10 @@
 import { NS, NetscriptPort, NodeStats } from "@ns";
 import { HACKNET_PORT } from "@/_tools/ports";
+import { Flags } from "@/_tools/tools";
 
-const MAX_SERVER_LEVEL = 100;
+const MAX_SERVER_LEVEL = 192;
 const MAX_SERVER_RAM   = 1e9; 
-const MAX_SERVER_CORES = 22;
+const MAX_SERVER_CORES = 48;
 const MAX_SERVER_CACHE = 6;
 
 enum HashSaleUpgrade {
@@ -17,10 +18,10 @@ enum HashSaleUpgrade {
 export async function main(ns: NS) {
 	ns.disableLog("sleep");
 
-	const flags = ns.flags([
-		["daemon", false],
-		["port",   HACKNET_PORT]
-	]);
+	const {flags, args} = Flags(ns, {
+		daemon: false,
+		port:   HACKNET_PORT,
+	} as { daemon: boolean, port: number });
 
 	// if the daemon isn't running, start it
 	if (ns.getRunningScript("run-hacknet.js", "home", "--daemon") == null) {
@@ -30,17 +31,20 @@ export async function main(ns: NS) {
 	// start the daemon if we've been instructed to
 	if (flags.daemon) {
 		ns.tprint("Hacknet management daemon starting...");
-		await RunDaemon(ns, Number(flags.port));
+		await RunDaemon(ns, flags.port);
 		return;
 	}
 
-	const port = ns.getPortHandle(Number(flags.port));
-	const args = flags["_"] as string[];
+	const port = ns.getPortHandle(flags.port);
 
 	const commands: Record<string, {description: string, execute: () => void}> = {
 		"upgradenodes": {
 			description: "Instructs the hacknet daemon to spend all money upgrading hacknet nodes.",
 			execute: () => SendDaemonCommand(ns, "Setting mode to upgrade nodes", port, ["modeset", ["upgradenodes"]]),
+		},
+		"target": {
+			description: "Sets a target hash production value, at which the mode will be set to extract cash.",
+			execute: () => { const t = Number(args[1]); if (!Number.isNaN(t) && t > 0) { SendDaemonCommand(ns, `Setting upgrade target to ${t}`, port, ["upgradetarget", [t]]); } else { ns.tprint("Provide a target production in hashes/sec.") } },
 		},
 		"extractcash": {
 			description: "Instructs the hacknet daemon to spend all hashes generating funds.",
@@ -90,7 +94,8 @@ async function RunDaemon(ns: NS, portNumber: number) {
 	const servers  = [...Array(ns.hacknet.numNodes()).keys()].map(i => ComputeServerInfo(ns, i))
 	const state    = {
 		servers: servers,
-		upgrades: ComputePotentialUpgrades(ns, servers)
+		upgrades: ComputePotentialUpgrades(ns, servers),
+		upgradeTarget: Infinity,
 	};
 
 	let mode: number = OperatingMode.ExtractCash;
@@ -99,6 +104,13 @@ async function RunDaemon(ns: NS, portNumber: number) {
 		switch (mode) {
 			case OperatingMode.UpgradeNodes:
 				await ns.sleep(UpgradeAllNodes(ns, state));
+
+				if (state.upgradeTarget < Infinity) {
+					if (state.servers.reduce((total, server) => total + server.stats.production, 0) >= state.upgradeTarget) {
+						ns.tprint(`Upgrade target of ${state.upgradeTarget} reached; mode set to ExtractCash.`);
+						mode = OperatingMode.ExtractCash;
+					}
+				}
 				break;
 
 			case OperatingMode.ExtractCash:
@@ -150,7 +162,12 @@ async function RunDaemon(ns: NS, portNumber: number) {
 					switch (newmode) {
 						case "upgradenodes":
 							mode = OperatingMode.UpgradeNodes;
-							ns.print("Operating mode set to UpgradeNodes");
+							if (state.upgradeTarget === Infinity) {
+								ns.print("Operating mode set to UpgradeNodes.");
+							} else {
+								state.upgradeTarget = Infinity;
+								ns.print("Operating mode set to UpgradeNodes; target reset to Infinity.");
+							}
 							break;
 
 						case "extractcash":
@@ -159,7 +176,8 @@ async function RunDaemon(ns: NS, portNumber: number) {
 							//const totalProduction = state.servers.reduce((total, curServer) => total + ns.hacknet.getNodeStats(curServer.index).production, 0);
 							//const costToSell      = ns.hacknet.hashCost(HashSaleUpgrade.SellForMoney);
 							//const sellsPerSecond  = totalProduction / costToSell;
-							const gainRate = state.servers.reduce((total, curServer) => total + ns.formulas.hacknetNodes.moneyGainRate(curServer.stats.level, curServer.stats.ram, curServer.stats.cores, ns.getPlayer().mults.hacknet_node_money), 0)
+							const moneyMult = ns.getPlayer().mults.hacknet_node_money;
+							const gainRate = state.servers.reduce((total, curServer) => total + ns.formulas.hacknetNodes.moneyGainRate(curServer.stats.level, curServer.stats.ram, curServer.stats.cores, moneyMult), 0)
 							ns.tprint(`Expected money gain rate: ${ns.formatNumber(gainRate)}/sec`);
 							break;
 
@@ -182,6 +200,12 @@ async function RunDaemon(ns: NS, portNumber: number) {
 							ns.print(`Unknown operating mode requested: ${newmode}`);
 							break;
 					}
+					break;
+
+				case "upgradetarget":
+					const target: number = args[0];
+					state.upgradeTarget = target;
+					ns.tprint(`Upgrade target set to ${target}`);
 					break;
 
 				default:

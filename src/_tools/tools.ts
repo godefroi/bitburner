@@ -1,4 +1,49 @@
-import { NS, ProcessInfo, Server } from "@ns";
+import { NS, ProcessInfo, ScriptArg, Server } from "@ns";
+
+
+export type FlagsRecord = Record<string, (string[] | ScriptArg)>;
+
+
+export function Flags<T extends FlagsRecord>(ns: NS, obj: T) {
+	const schema = Object.keys(obj).map(k => [k, obj[k]] as [string, string[] | ScriptArg]);
+	const flags  = ns.flags(schema);
+
+	Object.assign(obj, flags);
+
+	return {flags: obj, args: flags["_"] as string[]};
+}
+
+
+export function Matches(arr1: (string | number | boolean)[] | undefined, arr2: (string | number | boolean)[] | undefined) {
+	if (arr1 == undefined && arr2 == undefined) {
+		return true;
+	}
+
+	if (arr1 == undefined || arr2 == undefined) {
+		return false;
+	}
+
+	if (arr1.length != arr2.length) {
+		return false;
+	}
+
+	for (let i = 0; i < arr1.length; i++) {
+		if (arr1[i] !== arr2[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+
+export function ToMap<T, K>(arr: T[], getKey: (arg0: T) => K): Map<K, T> {
+	const ret = new Map<K, T>();
+
+	arr.forEach(v => ret.set(getKey(v), v));
+
+	return ret;
+}
 
 
 export function ExploreServers(ns: NS, includeHacknet: boolean = false): string[] {

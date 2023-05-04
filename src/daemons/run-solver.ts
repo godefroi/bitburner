@@ -1,5 +1,7 @@
 import { NS } from "@ns";
 import { ExploreServers } from "@/_tools/tools";
+import { DaemonCommand, Execute } from "@/_tools/daemon";
+import { SOLVER_PORT } from "@/_tools/ports";
 
 type ContractAnswer = (string | number | any[] | undefined);
 type ContractSolver = (ns: NS, contract: ContractInfo) => ContractAnswer;
@@ -8,68 +10,122 @@ export async function main(ns: NS) {
 	ns.disableLog("scan");
 	ns.disableLog("sleep");
 
-	const flags = ns.flags([
-		["once", false]]);
+	const commands: DaemonCommand<SolverFlags, SolverState>[] = [
+		{
+			command: "failed",
+			helpText: "Show failed attempt information",
+			handler: ShowFailedSolves,
+		},
+		{
+			command: "unknown",
+			helpText: "Show unknown type information",
+			handler: ShowUnknownTypes,
+		}
+	];
 
-	const once = Boolean(flags["once"]);
-	const slvers: Record<string, ContractSolver> = {
-		"Algorithmic Stock Trader I":              AlgorithmicStockTraderI,
-		"Algorithmic Stock Trader II":             AlgorithmicStockTraderII,
-		"Algorithmic Stock Trader III":            AlgorithmicStockTraderIII,
-		"Algorithmic Stock Trader IV":             AlgorithmicStockTraderIV,
-		"Array Jumping Game":                      ArrayJumpingGame,
-		"Array Jumping Game II":                   ArrayJumpingGameII,
-		"Compression I: RLE Compression":          CompressionIRLECompression,
-		"Compression II: LZ Decompression":        CompressionIILZDecompression,
-		"Compression III: LZ Compression":         CompressionIIILZCompression,
-		"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
-		"Encryption II: Vigenère Cipher":          EncryptionIIVigenereCipher,
-		"Find All Valid Math Expressions":         FindAllValidMathExpressions,
-		"Find Largest Prime Factor":               FindLargestPrimeFactor,
-		"Generate IP Addresses":                   GenerateIPAddresses,
-		"HammingCodes: Encoded Binary to Integer": HammingCodesEncodedBinaryToInteger,
-		"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
-		"Merge Overlapping Intervals":             MergeOverlappingIntervals,
-		"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
-		"Proper 2-Coloring of a Graph":            Proper2ColoringOfAGraph,
-		"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
-		"Shortest Path in a Grid":                 ShortestPathInAGrid,
-		"Spiralize Matrix":                        SpiralizeMatrix,
-		"Subarray with Maximum Sum":               SubarrayWithMaximumSum,
-		"Total Ways to Sum":                       TotalWaysToSum,
-		"Total Ways to Sum II":                    TotalWaysToSumII,
-		"Unique Paths in a Grid I":                UniquePathsInAGridI,
-		"Unique Paths in a Grid II":               UniquePathsInAGridII,
+	await Execute(ns, SOLVER_PORT, InitializeState, RunDaemon, commands, {});
+}
+
+
+type SolverState = {
+	solvers: Record<string, ContractSolver>,
+	failedSolves: ContractInfo[],
+	unknownTypes: string[],
+};
+
+
+type SolverFlags = {
+
+};
+
+
+function InitializeState(ns: NS): SolverState {
+	return {
+		solvers: {
+			"Algorithmic Stock Trader I":              AlgorithmicStockTraderI,
+			"Algorithmic Stock Trader II":             AlgorithmicStockTraderII,
+			"Algorithmic Stock Trader III":            AlgorithmicStockTraderIII,
+			"Algorithmic Stock Trader IV":             AlgorithmicStockTraderIV,
+			"Array Jumping Game":                      ArrayJumpingGame,
+			"Array Jumping Game II":                   ArrayJumpingGameII,
+			"Compression I: RLE Compression":          CompressionIRLECompression,
+			"Compression II: LZ Decompression":        CompressionIILZDecompression,
+			"Compression III: LZ Compression":         CompressionIIILZCompression,
+			"Encryption I: Caesar Cipher":             EncryptionICaesarCipher,
+			"Encryption II: Vigenère Cipher":          EncryptionIIVigenereCipher,
+			"Find All Valid Math Expressions":         FindAllValidMathExpressions,
+			"Find Largest Prime Factor":               FindLargestPrimeFactor,
+			"Generate IP Addresses":                   GenerateIPAddresses,
+			"HammingCodes: Encoded Binary to Integer": HammingCodesEncodedBinaryToInteger,
+			"HammingCodes: Integer to Encoded Binary": HammingCodesIntegerToEncodedBinary,
+			"Merge Overlapping Intervals":             MergeOverlappingIntervals,
+			"Minimum Path Sum in a Triangle":          MinimumPathSumInATriangle,
+			"Proper 2-Coloring of a Graph":            Proper2ColoringOfAGraph,
+			"Sanitize Parentheses in Expression":      SanitizeParenthesesInExpression,
+			"Shortest Path in a Grid":                 ShortestPathInAGrid,
+			"Spiralize Matrix":                        SpiralizeMatrix,
+			"Subarray with Maximum Sum":               SubarrayWithMaximumSum,
+			"Total Ways to Sum":                       TotalWaysToSum,
+			"Total Ways to Sum II":                    TotalWaysToSumII,
+			"Unique Paths in a Grid I":                UniquePathsInAGridI,
+			"Unique Paths in a Grid II":               UniquePathsInAGridII,
+		},
+		failedSolves: [],
+		unknownTypes: [],
 	};
+}
 
-	if (!once) {
-		ns.tprint("Monitoring for contracts...");
+
+async function RunDaemon(ns: NS, state: SolverState): Promise<number> {
+	for (const c of FindContracts(ns)) {
+		// if we've failed this contract, then skip it
+		if (state.failedSolves.some(f => f.Filename == c.Filename && f.Server == c.Server && f.Type == c.Type)) {
+			continue;
+		}
+
+		// if this contract is of an unknown type, then skip it
+		if (state.unknownTypes.includes(c.Type)) {
+			continue;
+		}
+
+		// if this contract is of an unknown type that we don't know about, record that type and skip it
+		if (!Object.hasOwn(state.solvers, c.Type)) {
+			state.unknownTypes.push(c.Type);
+			continue;
+		}
+
+		// run the solver to get an answer
+		const answer = state.solvers[c.Type](ns, c);
+
+		// if our solver didn't return an answer, then we're probably testing it... just continue on
+		if (answer == undefined) {
+			continue;
+		}
+
+		const result = ns.codingcontract.attempt(answer, c.Filename, c.Server);
+
+		if (result === "") {
+			ns.print(`BAD ATTEMPT ${c.Server} (${c.Filename}) -> ${c.Type}`);
+			state.failedSolves.push(c);
+		} else {
+			ns.print(result);						
+		}
 	}
-	
-	while (true) {
-		for (const c of FindContracts(ns)) {
-			if (Object.hasOwn(slvers, c.Type)) {
-				const answer = slvers[c.Type](ns, c);
-				if (answer != undefined) {
-					const result = ns.codingcontract.attempt(answer, c.Filename, c.Server);
 
-					if (result === "") {
-						ns.tprint(`BAD ATTEMPT ${c.Server} (${c.Filename}) -> ${c.Type}`);
-					} else {
-						ns.tprint(result);						
-					}
-				}
-			} else {
-				ns.tprint(`${c.Server} (${c.Filename}) -> ${c.Type}`);
-				ns.codingcontract.attempt
-			}
-		}
+	return 60000;
+}
 
-		if (once) {
-			break;
-		}
 
-		await ns.sleep(30000);
+async function ShowFailedSolves(ns: NS, args: string[], flags: SolverFlags, state: SolverState) {
+	for (const f of state.failedSolves) {
+		ns.tprint(`FAILED: ${f.Type} on server ${f.Server} (file ${f.Filename})`);
+	}
+}
+
+
+async function ShowUnknownTypes(ns: NS, args: string[], flags: SolverFlags, state: SolverState) {
+	for (const f of state.unknownTypes) {
+		ns.tprint(`UNKNOWN: ${f}`);
 	}
 }
 

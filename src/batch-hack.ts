@@ -3,7 +3,7 @@ import { ExploreServers, TerminateScripts, CreatePlan, ExecutePlan } from "@/_to
 import { Prepared, PrepareServer } from "@/_tools/preparation";
 import { HACK_SCRIPT, GROW_SCRIPT, WEAK_SCRIPT, FindHackingTarget, Compromise } from "@/_tools/hacking";
 
-const JOB_SPACER   = 20;
+const JOB_SPACER = 20;
 
 
 export async function main(ns: NS) {
@@ -121,10 +121,10 @@ async function RunBatches(ns: NS, candidateServers: string[], bestTarget: string
 
 		// set up the batch execution plan
 		const plan = CreatePlan(ns, candidateServers, false,
-			{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: [bestTarget, metrics.Hack.Delay,    -1, batchCount] },
-			{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: [bestTarget, metrics.WeakenH.Delay, -1, batchCount, "w1"] },
-			{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: [bestTarget, metrics.Grow.Delay,    -1, batchCount] },
-			{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: [bestTarget, metrics.WeakenG.Delay, -1, batchCount, "w2"] });
+			{ Script: HACK_SCRIPT, Threads: metrics.Hack.Threads,    Arguments: ["--target", bestTarget, "--delay", metrics.Hack.Delay,    "--port", -1, "--batch", batchCount, "--type", "H"] },
+			{ Script: WEAK_SCRIPT, Threads: metrics.WeakenH.Threads, Arguments: ["--target", bestTarget, "--delay", metrics.WeakenH.Delay, "--port", -1, "--batch", batchCount, "--type", "W1"] },
+			{ Script: GROW_SCRIPT, Threads: metrics.Grow.Threads,    Arguments: ["--target", bestTarget, "--delay", metrics.Grow.Delay,    "--port", -1, "--batch", batchCount, "--type", "G"] },
+			{ Script: WEAK_SCRIPT, Threads: metrics.WeakenG.Threads, Arguments: ["--target", bestTarget, "--delay", metrics.WeakenG.Delay, "--port", -1, "--batch", batchCount, "--type", "W2"] });
 
 		// if we failed to plan the batch, we probably just don't have enough servers
 		// just move on, we'll try again later

@@ -1,21 +1,23 @@
 import { NS } from "@ns";
 
 export async function main(ns: NS) : Promise<void> {
-	const [targetServer = "", additionalMsec = 0, portHandle = -1] = ns.args;
+	const flags = ns.flags([
+		["target", ""],
+		["delay",   0],
+		["port",   -1],
+		["batch",  -1],
+		["type",  "G"],
+	]) as {target: string, delay: number, port: number, batch: number, type: string};
 
-	// if (typeof(additionalMsec) == "number" && additionalMsec > 0) {
-	// 	await ns.sleep(additionalMsec);
-	// }
-
-	if (typeof(targetServer) == "string") {
-		if (typeof(additionalMsec) == "number" && additionalMsec > 0) {
-			await ns.grow(targetServer, { additionalMsec });
+	if (flags.target != "") {
+		if (flags.delay > 0) {
+			await ns.grow(flags.target, { additionalMsec: flags.delay });
 		} else {
-			await ns.grow(targetServer);
+			await ns.grow(flags.target);
 		}
 	}
 
-	if (typeof(portHandle) == "number" && portHandle != -1) {
-		ns.getPortHandle(portHandle).tryWrite("finished");
+	if (flags.port != -1) {
+		ns.tryWritePort(flags.port, JSON.stringify({batch: flags.batch, type: flags.type, target: flags.target, finishTime: Date.now()}));
 	}
 }

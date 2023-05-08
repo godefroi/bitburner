@@ -17,9 +17,7 @@ type PurchaserFlags = {
 
 
 export async function main(ns: NS) {
-	ns.disableLog("getServerMoneyAvailable");
-	ns.disableLog("getServerMaxRam");
-	ns.disableLog("sleep");
+	ns.disableLog("ALL");
 
 	await Execute(ns, PURCHASER_PORT, InitializeState, RunDaemon, [
 		{
@@ -35,6 +33,14 @@ export async function main(ns: NS) {
 				}
 
 				ExecuteUpgrade(ns, state, ramTarget, toUpgrade);
+			}
+		},
+		{
+			command: "status",
+			helpText: "Instructs the daemon to report status information",
+			handler: async (ns, args, flags, state) => {
+				const {ramTarget, totalCost, toUpgrade} = CalculateUpgrade(ns, state);
+				ns.tprint(`${state.purchasedServers.length} owned; next upgrade of ${toUpgrade.length} servers to ${ns.formatRam(ramTarget)} will cost ${ns.formatNumber(totalCost)}`);
 			}
 		}
 	], {});
@@ -59,7 +65,11 @@ async function RunDaemon(ns: NS, state: PurchaserState) {
 			return 5000;
 		}
 
-		state.purchasedServers.push({server: ns.purchaseServer("pserv-" + state.purchasedServers.length, INITIAL_RAM), maxRam: INITIAL_RAM});
+		const newName = `pserv-${state.purchasedServers.length}`;
+
+		state.purchasedServers.push({server: ns.purchaseServer(newName, INITIAL_RAM), maxRam: INITIAL_RAM});
+
+		ns.print(`Purchased ${newName} at cost ${ns.formatNumber(state.initialCost)}`);
 	}
 
 	// then, check to see if we're good to upgrade

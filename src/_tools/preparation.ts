@@ -1,6 +1,6 @@
 import { NS } from "@ns";
-import { CreatePlan, ExecutePlan, ExecutionPlan, WaitPids } from "@/_tools/tools";
-import { GROW_SCRIPT, WEAK_SCRIPT } from "@/_tools/hacking";
+import { CreatePlan, ExecutePlan, ExecutionPlan, ExploreServers, WaitPids } from "@/_tools/tools";
+import { Compromise, GROW_SCRIPT, WEAK_SCRIPT } from "@/_tools/hacking";
 
 export enum PlanType {
 	AlreadyPrepared,
@@ -22,14 +22,18 @@ export interface PreparationPlan {
 
 
 
-export function Prepared(ns: NS, serverName: string): boolean {
+export function Prepared(ns: NS, serverName: string, marginPercent: number = 0.01): boolean {
 	const server = ns.getServer(serverName);
 
-	if (server.moneyAvailable < server.moneyMax) {
+	if (server.moneyMax == 0) {
+		return true;
+	}
+
+	if (1 - (server.moneyAvailable / server.moneyMax) > marginPercent) {
 		return false;
 	}
 
-	if (server.hackDifficulty > server.minDifficulty) {
+	if (1 - (server.minDifficulty / server.hackDifficulty) > marginPercent) {
 		return false;
 	}
 
@@ -112,28 +116,32 @@ export function PlanPreparation(ns: NS, candidateServers: string[], target: stri
 	plan = [];
 
 	if (server.hackDifficulty > server.minDifficulty) {
-		for (const server of allowedServers) {
+		for (const server of ExploreServers(ns, true).filter(s => Compromise(ns, s))) {
 			const availRam   = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
 			const threadRam  = ns.getScriptRam(WEAK_SCRIPT);
 			const maxThreads = Math.floor(availRam / threadRam);
 
-			plan.push({
-				Execution: { Script: WEAK_SCRIPT, Threads: maxThreads, Arguments: ["--target", target] },
-				Server: server
-			});
+			if (maxThreads > 0) {
+				plan.push({
+					Execution: { Script: WEAK_SCRIPT, Threads: maxThreads, Arguments: ["--target", target] },
+					Server: server
+				});
+			}
 		}
 
 		return { planType: PlanType.BruteWeaken, complete: false, plan };
 	} else if (server.moneyAvailable < server.moneyMax) {
-		for (const server of allowedServers) {
+		for (const server of ExploreServers(ns, true).filter(s => Compromise(ns, s))) {
 			const availRam   = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
 			const threadRam  = ns.getScriptRam(GROW_SCRIPT);
 			const maxThreads = Math.floor(availRam / threadRam);
 
-			plan.push({
-				Execution: { Script: GROW_SCRIPT, Threads: maxThreads, Arguments: ["--target", target] },
-				Server: server
-			});
+			if (maxThreads > 0) {
+					plan.push({
+					Execution: { Script: GROW_SCRIPT, Threads: maxThreads, Arguments: ["--target", target] },
+					Server: server
+				});
+			}
 		}
 
 		return { planType: PlanType.BruteGrow, complete: false, plan };

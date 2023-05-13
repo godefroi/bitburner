@@ -129,7 +129,7 @@ export async function main(ns: NS) {
 		},
 		{
 			name: "Grow Development Office",
-			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Aevum).size > 500 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Aevum, 3),
+			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Aevum).size > 600 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Aevum, 3),
 			executeFunction: async (ns: NS, division: Division, products: CorpProduct[]) => {
 				// hire 3 employees into the appropriate place
 				// you can deprio business and ops in main
@@ -141,6 +141,12 @@ export async function main(ns: NS) {
 				//   business:   1/20
 				//   management: 3/20
 				//   research:   12/20
+
+				// according to d0sboots here: https://discord.com/channels/415207508303544321/923445881389338634/1104284135725473853
+				// "the way to go is probably ~1 on ops, ~2 on eng, and everything else in management"
+				// const mng = Math.ceil(employees / 12 * 10);
+				// const engi = Math.ceil((employees - mng) / 2);
+				// const op = employees - mng - eng;
 
 				const office = ns.corporation.getOffice(division.name, CITIES.Aevum);
 
@@ -159,7 +165,7 @@ export async function main(ns: NS) {
 		},
 		{
 			name: "Grow Non-development Offices",
-			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Sector12).size > 300 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Sector12, 3) * (CITIES.length - 1) * 2, // 3 because this should be deemphasized a bit
+			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => ns.corporation.getOffice(division.name, CITIES.Sector12).size > 400 ? Infinity : ns.corporation.getOfficeSizeUpgradeCost(division.name, CITIES.Sector12, 3) * (CITIES.length - 1) * 2, // 3 because this should be deemphasized a bit
 			executeFunction: async (ns: NS, division: Division, products: CorpProduct[]) => {
 				for (const city of CITIES) {
 					// skip Aevum, that's the development city
@@ -176,6 +182,10 @@ export async function main(ns: NS) {
 		{
 			name: "Develop New Product",
 			costFunction: (ns: NS, division: Division, products: CorpProduct[]) => {
+				if (ns.corporation.getCorporation().funds > 1e80) {
+					return Infinity;
+				}
+
 				// cost is infinity if we have one developing, otherwise low
 
 				// if a product is under development, then don't do this action
@@ -285,7 +295,6 @@ export async function main(ns: NS) {
 					ns.corporation.research(division.name, MARKET_TA_II);
 					return;
 				}
-
 			}
 		},
 		{
@@ -303,7 +312,7 @@ export async function main(ns: NS) {
 				const minLevel = Math.min(...currentUpgrades.map(u => u.currentLevel));
 
 				// don't upgrade past 350
-				if (minLevel >= 100) {
+				if (minLevel >= 125) {
 					return Infinity;
 				}
 
@@ -386,7 +395,7 @@ async function EstablishAgricultureDivision(ns: NS) {
 
 	if (ns.corporation.getDivision(AGRICULTURE).cities.map(c => ns.corporation.getOffice(AGRICULTURE, c)).every(o => o.employees <= 3)) {
 		// wait for great employees
-		ns.tprint("Waiting for employee levels to reach peak before initiating investment.");
+		ns.tprint("Waiting for employee levels (round 1/2)");
 		await EnsureEmployeeLevels(ns, AGRICULTURE, 100.000, 99.998, 99.998);
 
 		// then we're looking for investment of $210bn (2.1e11)
@@ -403,6 +412,10 @@ async function EstablishAgricultureDivision(ns: NS) {
 	}
 
 	// took a 1.72e11 round for 10% stake investment during above...
+
+	// wait for our levels to juice up again, we're gonna need (another) investment
+	ns.tprint("Waiting for employee levels (round 2/2)");
+	await EnsureEmployeeLevels(ns, AGRICULTURE, 100.000, 99.998, 99.998);
 
 	// some upgrades
 	for (const upgrade of ["Smart Factories", "Smart Storage"]) {
@@ -586,17 +599,74 @@ async function EnsureEmployeeLevels(ns: NS, divisionName: string, avgMorale: num
 }
 
 async function AdjustProductPrice(ns: NS, divisionName: string, productName: string) {
-	const product  = ns.corporation.getProduct(divisionName, productName);
-	const price    = Number.isNaN(Number(product.sCost)) ? product.pCost : Number(product.sCost);
-	const newPrice = price * 1.01;
-	const priceScore = (product: Product) => Object.values(product.cityData).reduce((prevValue, [_, production, sale]) => prevValue + (sale - production), 0);
+	const PRICE_RAMP_UP_PCT   = 1.0;
+	const PRICE_RAMP_DOWN_PCT = 0.02;
+
+	const parseMultiplier = (sCost: (string | number)) => typeof sCost === "string" ? parseInt(/\d+$/.exec(sCost)?.[0] ?? "0") : 1
+	const allProducts     = ns.corporation.getDivision(divisionName).products
+		.map(p => new CorpProduct(ns, divisionName, p))
+		.sort((a, b) => b.version - a.version); // sort newest first... ours should be at the top, index 0
+	const myIndex = allProducts.findIndex(p => p.product.name == productName);
+
+	if (myIndex == -1) {
+		// uh, we can't adjust the price of a non-existant product, y'know?
+		return;
+	}
+
+	const baseMult = myIndex >= allProducts.length ? 1 : parseMultiplier(allProducts[myIndex + 1].product.sCost);
+	
+	let targetMult = baseMult;
+
+	// dump any product that exists
+	ns.corporation.sellProduct(divisionName, CITIES.Aevum, productName, "MAX", "0", true);
+	await AwaitCycle(ns);
+
+	if (ns.corporation.getProduct(divisionName, productName).cityData.Aevum[0] != 0) {
+		// um, that was supposed to dump all the product...
+		return;
+	}
+
+	let inventoryLevel = 0;
+	let startInventory = 0;
+
+	do {
+		// increase the target multiplier by 100% of the base multiplier
+		// maybe we could go lower, say 50%, if we tend to overshoot by way too far?
+		targetMult += Math.ceil(baseMult * PRICE_RAMP_UP_PCT);
+
+		// set the price to our target multiplier
+		ns.corporation.sellProduct(divisionName, CITIES.Aevum, productName, "MAX", `MP*${targetMult}`, true);
+
+		// wait for a market cycle to pass
+		await AwaitCycle(ns);
+
+		// get our inventory after this cycle
+		inventoryLevel = ns.corporation.getProduct(divisionName, productName).cityData.Aevum[0];
+	} while (inventoryLevel <= 0);
+
+	// at this point, our price is too high; begin reducing it by some amount until inventory starts dropping
+	do {
+		// reduce our target multiplier
+		targetMult -= Math.ceil(baseMult * PRICE_RAMP_DOWN_PCT);
+
+		// set the price to our target multiplier
+		ns.corporation.sellProduct(divisionName, CITIES.Aevum, productName, "MAX", `MP*${targetMult}`, true);
+
+		startInventory = inventoryLevel;
+
+		// wait for a market cycle to pass
+		await AwaitCycle(ns);
+
+		// get our inventory after this cycle
+		inventoryLevel = ns.corporation.getProduct(divisionName, productName).cityData.Aevum[0];
+	} while (inventoryLevel - startInventory >= 0);
 }
 
 async function AwaitCycle(ns: NS) {
 	const startFunds = ns.corporation.getCorporation().funds;
 
 	while (ns.corporation.getCorporation().funds == startFunds) {
-		await ns.sleep(250);
+		await ns.sleep(100);
 	}
 }
 
@@ -608,11 +678,11 @@ async function AwaitFunds(ns: NS, funds: number) {
 	}
 
 	const gapCycles  = (funds - corp.funds) / (corp.revenue - corp.expenses);
-	const timeToWait = gapCycles * ns.corporation.getConstants().secondsPerMarketCycle;
+	const timeToWait = gapCycles / ns.corporation.getConstants().secondsPerMarketCycle;
 
 	ns.tprint(`Waiting approx ${ns.tFormat(timeToWait * 1000)} for funds (${ns.formatNumber(funds)}).`);
 
-    while (ns.corporation.getCorporation().funds < funds) {
-        await ns.sleep(1000);
-    }
+	while (ns.corporation.getCorporation().funds < funds) {
+		await ns.sleep(1000);
+	}
 }

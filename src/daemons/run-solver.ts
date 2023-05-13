@@ -7,8 +7,7 @@ type ContractAnswer = (string | number | any[] | undefined);
 type ContractSolver = (ns: NS, contract: ContractInfo) => ContractAnswer;
 
 export async function main(ns: NS) {
-	ns.disableLog("scan");
-	ns.disableLog("sleep");
+	ns.disableLog("ALL");
 
 	const commands: DaemonCommand<SolverFlags, SolverState>[] = [
 		{

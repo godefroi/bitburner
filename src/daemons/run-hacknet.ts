@@ -44,12 +44,10 @@ export async function main(ns: NS) {
 			handler: async (ns, args, flags, state) => {
 				state.mode = OperatingMode.ExtractCash;
 				ns.tprint("Operating mode set to ExtractCash");
-				//const totalProduction = state.servers.reduce((total, curServer) => total + ns.hacknet.getNodeStats(curServer.index).production, 0);
-				//const costToSell      = ns.hacknet.hashCost(HashSaleUpgrade.SellForMoney);
-				//const sellsPerSecond  = totalProduction / costToSell;
-				const moneyMult = ns.getPlayer().mults.hacknet_node_money;
-				const gainRate = state.servers.reduce((total, curServer) => total + ns.formulas.hacknetNodes.moneyGainRate(curServer.stats.level, curServer.stats.ram, curServer.stats.cores, moneyMult), 0)
-				ns.tprint(`Expected money gain rate: ${ns.formatNumber(gainRate)}/sec`);
+				const totalProduction = state.servers.reduce((total, current) => total + ns.hacknet.getNodeStats(current.index).production, 0);
+				const costPerPurchase = ns.hacknet.hashCost(HashSaleUpgrade.SellForMoney);
+				const purchasesPerSec = totalProduction / costPerPurchase;
+				ns.tprint(`Expected money gain rate: ${ns.formatNumber(1e6 * purchasesPerSec)}/sec`);
 			},
 		},
 		{

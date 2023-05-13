@@ -222,8 +222,9 @@ export function CreatePlan(ns: NS, candidateServers: string[], canSpread: boolea
 			}
 		} else {
 			const possibleServers = servers
-				.sort((a, b) => b.MaxRam - a.MaxRam) // b-a sorts biggest first; this means we don't pollute the "Active Scripts" with all the tiny servers
-				.filter(s => s.AvailableRam >= script.TotalRam);
+				.filter(s => s.AvailableRam >= script.TotalRam)
+				//.sort((a, b) => b.MaxRam - a.MaxRam); // b-a sorts biggest first; this means we don't pollute the "Active Scripts" with all the tiny servers
+				.sort((a, b) => a.AvailableRam - b.AvailableRam); // a-b sorts smallest first; this should probably be more ram-efficient when we're tightly constrained
 
 			// if none of the servers have enough ram for this script, then our planning fails
 			if (possibleServers.length == 0) {

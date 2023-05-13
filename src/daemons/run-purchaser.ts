@@ -9,10 +9,7 @@ type PurchaserState = {
 	maxServerCount: number,
 	initialCost: number,
 	purchasedServers: {server: string, maxRam: number}[],
-}
-
-type PurchaserFlags = {
-
+	lastReport: string,
 }
 
 
@@ -53,6 +50,7 @@ function InitializeState(ns: NS): PurchaserState {
 		maxServerCount: ns.getPurchasedServerLimit(),
 		initialCost: ns.getPurchasedServerCost(INITIAL_RAM),
 		purchasedServers: ns.getPurchasedServers().map(s => ({server: s, maxRam: ns.getServerMaxRam(s)})),
+		lastReport: "",
 	};
 }
 
@@ -62,6 +60,11 @@ async function RunDaemon(ns: NS, state: PurchaserState) {
 	while (state.purchasedServers.length < state.maxServerCount) {
 		// don't spend more than 10% of our money on buying a new server
 		if (state.initialCost > (ns.getServerMoneyAvailable("home") / 10)) {
+			if (state.lastReport != `waitPurchase${state.purchasedServers.length}`) {
+				state.lastReport = `waitPurchase${state.purchasedServers.length}`;
+				ns.print(`Waiting to purchase server #${state.purchasedServers.length + 1}/${state.maxServerCount} for ${ns.formatNumber(state.initialCost)}`);
+			}
+
 			return 5000;
 		}
 
@@ -127,7 +130,7 @@ function ExecuteUpgrade(ns: NS, state: PurchaserState, ramTarget: number, toUpgr
 
 	const nextUpgrade = CalculateUpgrade(ns, state);
 
-	ns.tprint(`${toUpgrade.length} servers upgraded to ${ns.formatRam(ramTarget)}; next upgrade to ${ns.formatRam(nextUpgrade.ramTarget)} will cost ${ns.formatNumber(nextUpgrade.totalCost)}.`);
+	ns.print(`${toUpgrade.length} upgraded to ${ns.formatRam(ramTarget)}; next at cost ${ns.formatNumber(nextUpgrade.totalCost)}`);
 
 	return nextUpgrade;
 }

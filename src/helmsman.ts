@@ -1,20 +1,25 @@
-import { type CityName, NS } from "@ns";
-import { ExploreServers, WaitPids } from "@/_tools/tools";
-import { CITIES, COMBAT_SKILLS, GYMS } from "@/_tools/enums";
-import { Compromise } from "./_tools/hacking";
+import { type CityName, NS, Server, Player } from "@ns";
+import { ExploreServers } from "@/_tools/tools";
+import { Compromise } from "@/_tools/hacking";
+import { DaemonCommand, Execute } from "@/_tools/daemon";
+import { HELMSMAN_PORT } from "@/_tools/ports";
+import { FACTIONS } from "@/_tools/faction";
+import { BATCHER_RELEVANT_PROGRAMS } from "@/_tools/enums";
 
 
 class ServerState {
 	hostname: string;
 	compromised: boolean;
 	backdoored: boolean;
+	requiredSkill: number;
+	backdoorSignificant: boolean;
 
-	constructor(ns: NS, hostName: string) {
-		const server = ns.getServer(hostName);
-
-		this.hostname    = server.hostname;
-		this.compromised = server.hasAdminRights;
-		this.backdoored  = server.backdoorInstalled;
+	constructor(server: Server) {
+		this.hostname            = server.hostname;
+		this.compromised         = server.hasAdminRights;
+		this.backdoored          = server.backdoorInstalled;
+		this.requiredSkill       = server.requiredHackingSkill;
+		this.backdoorSignificant = FACTIONS.some(f => f.backdoorServer == server.hostname);
 	}
 }
 
@@ -22,58 +27,154 @@ const GameState = {
 	Servers: new Map<string, ServerState>(),
 };
 
-
-export async function main(ns: NS) {
-	ns.disableLog("sleep");
-	//ns.singularity.installBackdoor()
-	//ExploreServers(ns)
-	//ns.singularity.
-
-	//const purchasedServers = ns.getPurchasedServers();
-
-	//ExploreServers(ns).filter(s => !purchasedServers.includes(s)).forEach(s => GameState.AllServers.add(s));
-	//ns.tprint(`AllServers contains ${GameState.AllServers.size} entries.`);
-
-	//Array.from(GameState.AllServers).filter()
-
-
-
-	await InstallBackdoor(ns, "CSEC");
-	await InstallBackdoor(ns, "I.I.I.I");
-	await InstallBackdoor(ns, "avmnite-02h");
-	await InstallBackdoor(ns, "run4theh111z");
-	await InstallBackdoor(ns, "fulcrumassets");
-	await InstallBackdoor(ns, "The-Cave");
-	await TrainCombatSkills(ns, 1200);
-
-	//ns.singularity.destroyW0r1dD43m0n()
-	ns.tprint("Done!");
+interface HelmsmanState {
+	servers: Map<string, ServerState>,
+	backdoorNeeded: ServerState[],
+	haveTor: boolean,
+	darkwebPrograms: {program: string, cost: number}[],
 }
 
-async function TrainCombatSkills(ns: NS, target: number) {
-	const needFocus   = !ns.singularity.getOwnedAugmentations().some(augName => augName == "Neuroreceptor Management Implant");
-	const currentCity = ns.getPlayer().city;
-	const gym         = GYMS.find(g => g.city == currentCity);
 
-	if (gym == undefined) {
-		ns.tprint("Need to be in Aevum (best), Volhaven (2nd), or Sector-12 (worst) to work out.");
-		return;
+export async function main(ns: NS) {
+	ns.disableLog("ALL");
+
+	const commands: DaemonCommand<{}, HelmsmanState>[] = [
+	];
+
+	await Execute(ns, HELMSMAN_PORT, InitializeState, RunDaemon, commands, {});
+
+	return;
+
+
+	//ns.singularity.workForCompany("Clarke Incorporated", false);
+
+	//ns.singularity.destroyW0r1dD43m0n()
+	//ns.tprint("Done!");
+}
+
+
+const pendingDarkwebPrograms = (ns: NS) => ns.singularity.getDarkwebPrograms().map(p => ({program: p, cost: ns.singularity.getDarkwebProgramCost(p)})).filter(p => p.cost > 0);
+
+
+function InitializeState(ns: NS): HelmsmanState {
+	const allServers = ExploreServers(ns, false).map(s => new ServerState(ns.getServer(s)));
+	const player     = ns.getPlayer();
+
+	return {
+		servers:         new Map<string, ServerState>(allServers.map(s => [s.hostname, s])),
+		backdoorNeeded:  allServers.filter(s => s.backdoorSignificant && !s.backdoored),
+		haveTor:         ns.singularity.getDarkwebPrograms().length > 0,
+		darkwebPrograms: pendingDarkwebPrograms(ns),
+	};
+}
+
+
+async function RunDaemon(ns: NS, state: HelmsmanState): Promise<number> {
+	const player = ns.getPlayer();
+
+	// if we don't have the TOR program, maybe buy it
+	if (!state.haveTor) {
+		if (player.money >= 1e6) {
+			if (ns.singularity.purchaseTor()) {
+				state.haveTor         = true;
+				state.darkwebPrograms = pendingDarkwebPrograms(ns);
+
+				ns.print(`Purchased TOR router; ${state.darkwebPrograms.length} pending darkweb purchases.`);
+			}
+		}
 	}
 
-	for (const skill of COMBAT_SKILLS) {
-		if (skill.currentLevel(ns) >= target) {
+	// if we have the TOR program, maybe buy programs
+	if (state.haveTor && state.darkwebPrograms.length > 0) {
+		// TODO: buy programs as they make sense
+		const purchases = state.darkwebPrograms.filter(p => p.cost < (player.money / 15)).map(p => ({program: p.program, purchased: ns.singularity.purchaseProgram(p.program)}));
+
+		if (purchases.some(s => s.purchased)) {
+			state.darkwebPrograms = pendingDarkwebPrograms(ns);
+			ns.print(`${state.darkwebPrograms.length} pending darkweb purchases.`);
+
+			const batcherRunning = ns.getRunningScript("/daemons/run-batcher.js", "home", "--daemon") != null;
+			const canCompromise  = BATCHER_RELEVANT_PROGRAMS.some(program => purchases.some(purchase => purchase.program == program && purchase.purchased));
+
+			// if we bought hacking programs and the batcher is running, we need to instruct the batcher to rescan
+			if (batcherRunning && canCompromise) {
+				ns.exec("/daemons/run-batcher.js", "home", 1, "rescan");
+			}
+		}
+	}
+
+	// any backdoor-needed servers from factions
+	// should be automatically backdoored when possible
+	if (state.backdoorNeeded.length > 0) {
+		state.backdoorNeeded = await BackdoorServers(ns, state.backdoorNeeded, player);
+	}
+
+	// accept any offered faction invites, assuming they don't block
+	// any faction we need (i.e. we need thier unique aug)
+	// this means we need to be able to produce the set of city factions we "need"
+	const currentInvitations = ns.singularity.checkFactionInvitations();
+
+	if (currentInvitations.length > 0) {
+		const currentExclusions = new Set(player.factions.flatMap(f => FACTIONS.find(faction => faction.name == f)?.excludes ?? []));
+
+		currentInvitations.forEach(factionName => {
+			const faction = FACTIONS.find(f => f.name == factionName);
+
+			if (faction == undefined) {
+				ns.print(`Unrecognized faction offer: ${factionName}`);
+				return;
+			}
+
+			// don't accept invites that exclude other factions unless they're all already excluded
+			if (faction.excludes.length > 0) {
+				if (!faction.excludes.every(exclusion => currentExclusions.has(exclusion))) {
+					return;
+				}
+			}
+
+			// otherwise, join the faction
+			if (!ns.singularity.joinFaction(factionName)) {
+				ns.print(`Faction join failed: ${factionName}`);
+			}
+		});
+	}
+
+	// adjust our current batcher target if it makes sense to do so
+
+	return 10000;
+}
+
+
+async function BackdoorServers(ns: NS, servers: ServerState[], player: Player): Promise<ServerState[]> {
+	let modified = false;
+
+	for (const server of servers) {
+		// if the server is backdoored or doesn't need to be backdoored, skip it
+		if (server.backdoored || !server.backdoorSignificant) {
+			modified = true;
 			continue;
 		}
 
-		if (!ns.singularity.gymWorkout(gym.gym, skill.stat, needFocus)) {
-			ns.tprint(`Workout failed in gym ${gym.gym} (${gym.city}) targeting ${skill.stat}`);
-			return;
+		// if we don't have sufficient skill to backdoor the server, skip it
+		if (server.requiredSkill > player.skills.hacking) {
+			continue;
 		}
 
-		while (skill.currentLevel(ns) < target) {
-			await ns.sleep(5000);
+		// otherwise, backdoor it
+		if (await InstallBackdoor(ns, server.hostname)) {
+			server.backdoored = true;
+			modified = true;
+			ns.print(`Backdoor installed on ${server.hostname}`);
+		} else {
+			ns.print(`Backdoor install failed on ${server.hostname}`);
 		}
 	}
+
+	if (!modified) {
+		return servers;
+	}
+
+	return servers.filter(s => s.backdoorSignificant && !s.backdoored)
 }
 
 

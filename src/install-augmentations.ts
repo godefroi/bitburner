@@ -10,6 +10,7 @@ export async function main(ns: NS) {
 		{ filename: "/daemons/run-hacknet.js", args: ["--daemon"] },
 		{ filename: "/daemons/run-solver.js",  args: ["--daemon"] },
 		{ filename: "run-gang.js",             args: [] },
+		{ filename: "helmsman.js",             args: ["--daemon"] },
 	].filter(si => Matches(runningScripts.get(si.filename)?.args, si.args));
 
 	// if we have servers purchased, we likely want to do that again

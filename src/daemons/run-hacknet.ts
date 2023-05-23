@@ -8,7 +8,7 @@ const MAX_SERVER_CORES = 48;
 const MAX_SERVER_CACHE = 6;
 
 export async function main(ns: NS) {
-	ns.disableLog("sleep");
+	ns.disableLog("ALL");
 
 	const daemonCommands: DaemonCommand<MyFlags, MyState>[] = [
 		{
@@ -51,11 +51,19 @@ export async function main(ns: NS) {
 			},
 		},
 		{
-			command: "improvestudy",
+			command: "improveuni",
 			helpText: "Instructs the hacknet daemon to spend all hashes improving universities.",
 			handler: async (ns, args, flags, state) => {
 				state.mode = OperatingMode.ImproveStudy;
 				ns.tprint("Operating mode set to ImproveStudy");
+			},
+		},
+		{
+			command: "improvegym",
+			helpText: "Instructs the hacknet daemon to spend all hashes improving gyms.",
+			handler: async (ns, args, flags, state) => {
+				state.mode = OperatingMode.ImproveGym;
+				ns.tprint("Operating mode set to ImproveGym");
 			},
 		},
 		{
@@ -93,6 +101,8 @@ function InitializeState(ns: NS): MyState {
 
 
 async function RunDaemon(ns: NS, state: MyState): Promise<number> {
+	// we should look into upgrading our cache automatically
+
 	switch (state.mode) {
 		case OperatingMode.UpgradeNodes:
 			const sleepTime = UpgradeAllNodes(ns, state);
@@ -111,6 +121,14 @@ async function RunDaemon(ns: NS, state: MyState): Promise<number> {
 		case OperatingMode.ImproveStudy:
 			SpendAllHashes(ns, HashSaleUpgrade.ImproveStudying);
 			if (ns.hacknet.hashCost(HashSaleUpgrade.ImproveStudying) > ns.hacknet.hashCapacity()) {
+				ns.print("Insufficient hash capacity; mode reset to ExtractCash");
+				state.mode = OperatingMode.ExtractCash;
+			}
+			return 1000;
+
+		case OperatingMode.ImproveGym:
+			SpendAllHashes(ns, HashSaleUpgrade.ImproveGyms);
+			if (ns.hacknet.hashCost(HashSaleUpgrade.ImproveGyms) > ns.hacknet.hashCapacity()) {
 				ns.print("Insufficient hash capacity; mode reset to ExtractCash");
 				state.mode = OperatingMode.ExtractCash;
 			}
@@ -184,7 +202,7 @@ function UpgradeAllNodes(ns: NS, state: {servers: ServerInfo[], upgrades: Server
 	state.upgrades = ComputePotentialUpgrades(ns, state.servers);
 
 	// don't sleep long, we might have more work to do
-	return 100;
+	return 10;
 }
 
 
@@ -287,6 +305,7 @@ enum OperatingMode {
 	UpgradeNodes,
 	ExtractCash,
 	ImproveStudy,
+	ImproveGym,
 	CorpFunds,
 	CorpRnD,
 }
@@ -294,6 +313,7 @@ enum OperatingMode {
 enum HashSaleUpgrade {
 	SellForMoney    = "Sell for Money",
 	ImproveStudying = "Improve Studying",
+	ImproveGyms     = "Improve Gym Training",
 	CorpFunds       = "Sell for Corporation Funds",
 	CorpResearch    = "Exchange for Corporation Research",
 }

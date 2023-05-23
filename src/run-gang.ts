@@ -354,6 +354,4 @@ function AscendThresholdReached(member: GangMemberInfo, ascension: GangMemberAsc
 }
 
 
-// @ts-ignore
-const CurrentKarma = (ns: NS): number => ns.heart.break();
 const CurrentDiscount = (ns: NS) => ns.gang.getEquipmentCost("Baseball Bat") / 1e6;

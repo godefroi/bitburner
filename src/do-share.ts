@@ -10,13 +10,13 @@ export async function main(ns: NS): Promise<void> {
 	const pids: number[] = [];
 
 	if (ns.args.length > 0 && ns.args[0].toString() == "all") {
-		pids.push(...ExploreServers(ns)
+		pids.push(...ExploreServers(ns, true)
 			.map(s => ns.getServer(s))
 			.filter(s => (s.maxRam - s.ramUsed) > 0 && Compromise(ns, s.hostname))
 			.map(s => ShareServer(ns, s.hostname, scriptRam, 0)));
 	}
 
-	pids.push(ShareServer(ns, "home", scriptRam, 1024 * 5));
+	pids.push(ShareServer(ns, "home", scriptRam, 64));
 
 	ns.atExit(() => {
 		KillPids(ns, ...pids);
@@ -32,9 +32,13 @@ function ShareServer(ns: NS, serverName: string, scriptRam: number, ramToReserve
 	const server      = ns.getServer(serverName);
 	const threadCount = Math.floor((server.maxRam - (server.ramUsed + ramToReserve)) / scriptRam);
 
+	if (threadCount <= 0) {
+		return -1;
+	}
+
 	ns.tprint(`Running ${threadCount} share threads on server ${serverName}`);
 
 	ns.scp(SHARE_SCRIPT, serverName, "home");
 
-	return threadCount > 0 ? ns.exec(SHARE_SCRIPT, serverName, threadCount) : -1;
+	return ns.exec(SHARE_SCRIPT, serverName, threadCount);
 }

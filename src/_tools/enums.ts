@@ -56,9 +56,9 @@ export const CRIMES = Object.freeze({
 
 /** Universities, in order of "bestness" */
 export const UNIVERSITIES = Object.freeze([
-	{ city: CITIES.Volhaven, university: "Rothman University"         },
-	{ city: CITIES.Aevum,    university: "Summit University"          },
-	{ city: CITIES.Sector12, university: "ZB Institute of Technology" },
+	{ city: CITIES.Volhaven, university: "ZB Institute of Technology" }, // 1.6e3
+	{ city: CITIES.Aevum,    university: "Summit University"          }, // 1.28e3
+	{ city: CITIES.Sector12, university: "Rothman University"         }, // 960
 ]);
 
 
@@ -76,4 +76,14 @@ export const COMBAT_SKILLS = Object.freeze([
 	{ stat: "Agility",   currentLevel: (ns: NS) => ns.getPlayer().skills.agility   },
 	{ stat: "Defense",   currentLevel: (ns: NS) => ns.getPlayer().skills.defense   },
 	{ stat: "Dexterity", currentLevel: (ns: NS) => ns.getPlayer().skills.dexterity },
+]);
+
+
+/** Darkweb programs relevant to the batcher */
+export const BATCHER_RELEVANT_PROGRAMS = Object.freeze([
+	"BruteSSH.exe",
+	"FTPCrack.exe",
+	"relaySMTP.exe",
+	"HTTPWorm.exe", 
+	"SQLInject.exe",
 ]);

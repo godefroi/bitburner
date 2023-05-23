@@ -14,6 +14,10 @@ export function Flags<T extends FlagsRecord>(ns: NS, obj: T) {
 }
 
 
+// @ts-ignore
+export const CurrentKarma = (ns: NS): number => ns.heart.break();
+
+
 export function Matches(arr1: (string | number | boolean)[] | undefined, arr2: (string | number | boolean)[] | undefined) {
 	if (arr1 == undefined && arr2 == undefined) {
 		return true;

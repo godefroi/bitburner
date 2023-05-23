@@ -143,9 +143,9 @@ export const FACTIONS: Faction[] = [
 	new Faction({ name: FACTION_NAMES.SlumSnakes,         type: FactionType.Criminal, combatStats: 30, karma: -9, cashOnHand: 1e6, }),
 	new Faction({ name: FACTION_NAMES.Tetrads,            type: FactionType.Criminal, combatStats: 75, karma: -18, city: CITIES.Chongqing }), // (or NT or Ishima)
 	new Faction({ name: FACTION_NAMES.Silhouette,         type: FactionType.Criminal, corpExec: true, karma: -22, cashOnHand: 1.5e7 }),
-	new Faction({ name: FACTION_NAMES.SpeakersForTheDead, type: FactionType.Criminal, karma: -45, peopleKilled: 30, hackingLevel: 100, combatStats: 300, notGovJob: true }),
-	new Faction({ name: FACTION_NAMES.TheDarkArmy,        type: FactionType.Criminal, karma: -45, peopleKilled: 5, hackingLevel: 300, combatStats: 300, notGovJob: true, city: CITIES.Chongqing }),
-	new Faction({ name: FACTION_NAMES.TheSyndicate,       type: FactionType.Criminal, karma: -90, cashOnHand: 1e7, hackingLevel: 200, combatStats: 200, notGovJob: true, city: CITIES.Aevum }), // or Sector-12
+	new Faction({ name: FACTION_NAMES.SpeakersForTheDead, type: FactionType.Criminal, combatStats: 300, karma: -45, peopleKilled: 30, hackingLevel: 100, notGovJob: true }),
+	new Faction({ name: FACTION_NAMES.TheDarkArmy,        type: FactionType.Criminal, combatStats: 300, karma: -45, peopleKilled: 5, hackingLevel: 300,  notGovJob: true, city: CITIES.Chongqing }),
+	new Faction({ name: FACTION_NAMES.TheSyndicate,       type: FactionType.Criminal, combatStats: 200, karma: -90, cashOnHand: 1e7, hackingLevel: 200,  notGovJob: true, city: CITIES.Aevum }), // or Sector-12
 
 	new Faction({ name: FACTION_NAMES.TheCovenant,  type: FactionType.Midgame, augmentations: 20, cashOnHand: 7.5e9,  hackingLevel: 850, combatStats: 850 }),
 	new Faction({ name: FACTION_NAMES.Daedalus,     type: FactionType.Midgame, augmentations: 30, cashOnHand: 1e10,   hackingLevel: 2500, combatStats: 1500, hackLevelOrCombat: true }),
